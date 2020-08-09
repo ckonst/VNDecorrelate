@@ -1,4 +1,4 @@
-import random
+import random as r
 import scipy.io.wavfile as wavfile
 import numpy as np
 
@@ -39,7 +39,6 @@ def restore(channel, original):
 
     '''
     return normalize(channel, min(original), max(original))
-    
 
 def normalize(channel, min=-1, max=1):
     '''
@@ -69,7 +68,7 @@ def normalize(channel, min=-1, max=1):
         channel = pos + neg
     return channel
 
-def vn_convolve(input_sig, impulse_response):
+def vn_convolve(input_sig, impulse_response,):
     '''
     Performs a convolution of the velvet noise sequence with a signal.
     We take advantage of the sparse nature of the sequence
@@ -103,7 +102,7 @@ def vn_convolve(input_sig, impulse_response):
         k_pos = []
         k_neg = []  
         if i < len(impulse_response):
-            for j, v in enumerate(impulse_response[i]):
+            for _, v in enumerate(impulse_response[i]):
                 if v == 0:
                     continue
                 elif v > 0:
@@ -111,10 +110,11 @@ def vn_convolve(input_sig, impulse_response):
                 else:
                     k_neg.append(i)
         # for each sample in the input signal
-        # add the positive and negative sums
-        for n, sample in enumerate(input_sig):
-            pos_sum = sum(channel[n - imp] for m, imp in enumerate(k_pos))
-            neg_sum = sum(channel[n - imp] for m, imp in enumerate(k_neg))
+        # perform the convolution
+        # and add the positive and negative sums
+        for n, _ in enumerate(input_sig):
+            pos_sum = sum(channel[n - imp] for _, imp in enumerate(k_pos))
+            neg_sum = sum(channel[n - imp] for _, imp in enumerate(k_neg))
             output_sig[n][i] = (pos_sum - neg_sum) 
         # restore the original levels of the input signal
         output_sig[:,i] = restore(output_sig[:,i], input_sig[:,i])
@@ -146,45 +146,47 @@ def vn_generate(p, fs, dur):
     
     '''
     # size of the sequence in samples
-    Ls = int(fs * dur) 
+    Ls = round(fs * dur) 
     # average spacing between two impulses (grid size)
     Td = fs / p
     # total number of impulses
-    M = Ls / Td
+    M = round(Ls / Td)
     # calculate the grid size between each impulse logarithmically
     # use a lambda function to be able to apply this for each impulse index
     Tdl = lambda m : (Ls / 100) * pow(10, (m - 2) / M)
     # number of segments
     I = 4
-    # coefficient values to for segmented decay can be set manually
+    # coefficient values for segmented decay can be set manually
     si = [0.95, 0.5, 0.25, 0.1]
-    impulse_response = np.zeros((Ls,))
+    impulse_response = np.zeros((Ls,), np.float32)
     for i, v in enumerate(impulse_response):
         # first, randomize sign of the impulse
-        v = (2 * round(random.random()) - 1) 
+        v = (2 * round(r.random()) - 1) 
         # now randomize the distance between impulses
-        index = round(i * Td + random.random() * (Td - 1))
+        index = round(i * Td + r.random() * (Td - 1))
         if index < len(impulse_response):
             # multiply a segmented decay constant based on impulse index
             v *= si[int(index / (Ls / I))]
             # logarithmically distribute the impulses
-            index = round(random.random() * (Tdl(i) - 1)) + round(sum(Tdl(j) for j in range(i)))
-            impulse_response[index] = v
+            index = round(r.random() * (Tdl(i) - 1))
+            index += round(sum((Tdl(j) for j in range(i))))
+            if index < len(impulse_response):
+                index = int(index)
+                impulse_response[index] = v
     return impulse_response
-
 #%%
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     DENSITY = 1000 # measured in spikes/impulses per second 
     VNS_DURATION = 0.03 # duration of VNS in seconds
-    LR_DELAY = 0.02
     sample_rate, sig_float32 = wavfile.read("drums.wav")
-    vns = [vn_generate(DENSITY, sample_rate, VNS_DURATION), vn_generate(DENSITY, sample_rate, VNS_DURATION)]
+    r.seed(a=4)
+    vns = [vn_generate(DENSITY, sample_rate, VNS_DURATION), \
+    vn_generate(DENSITY, sample_rate, VNS_DURATION)]
     result = vn_convolve(sig_float32, vns)
-    wavfile.write("drums_decorrelated.wav", sample_rate, result)
-    
-    sr, sf32 = wavfile.read("correct.wav")
-    
+    wavfile.write("drums_decorrelated.wav", sample_rate, result) 
+    fs, sf32 = wavfile.read("correct.wav")
+
     plt.figure()
     plt.plot(vns[0])
     plt.xlabel('Samples')
