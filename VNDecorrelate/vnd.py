@@ -1,6 +1,27 @@
 import random as r
-import scipy.io.wavfile as wavfile
 import numpy as np
+
+# TODO: 
+# Optimize convolve function
+# Finish decorrelate function 
+    # Test L-R decorrelation vs. Mid-Side decorrelation
+    # Test for stereo to stereo decorrelation
+# Finish documentation of VelvetNoise class
+# Put example code in a seperate file, so vnd.py only requires numpy
+# Try low pass filtering input signal at 3.5kHz
+
+from functools import wraps
+from time import time
+
+def measure(f):
+    @wraps(f)
+    def wrapper(*args, **kwargs):
+        start = time()
+        result = f(*args, **kwargs)
+        end = time()
+        print('Elapsed time: {} ms'.format((end-start) * 1000))
+        return result
+    return wrapper
 
 def tofloat32(input_sig):
     '''
@@ -68,124 +89,155 @@ def normalize(channel, min=-1, max=1):
         channel = pos + neg
     return channel
 
-def vn_convolve(input_sig, impulse_response,):
-    '''
-    Performs a convolution of the velvet noise sequence with a signal.
-    We take advantage of the sparse nature of the sequence
-    to do convolution very quickly.
+class VelvetNoise():
+    def __init__(self, p=1000, fs=44100, dur=0.03):
+        self.p = p
+        self.fs = fs
+        self.dur = dur
+        self.vns = []
+        self.impulses = []
+        # coefficient values for segmented decay can be set manually
+        self.si = [0.95, 0.5, 0.25, 0.1]
+        self.I = len(self.si)
+        
+    @measure
+    def convolve(self, input_sig, num_channels=2):
+        '''
+        Performs the convolution of the velvet noise filters 
+        onto a signal. We take advantage of the sparse nature of the sequence
+        to do the convolution very quickly.
+        
+        Parameters
+        ----------
+        input_sig : 2d numpy array
+            The input signal to convolve with the generated filter.
+        vns : 2d numpy array
+            A list containing the velvet noise filters 
+            to convolve with the input signal for each channel.
+        
+        Returns
+        ----------
+        output_sig : 2d numpy array
+             the output signal in stereo
+        '''
+        output_sig = np.zeros((len(input_sig), num_channels))
+        # perform a segmented convolution for each channel
+        for x, channel in enumerate(input_sig.T):
+            matrix = np.zeros((len(self.impulses[x]), len(channel)))
+            m = 0
+            for k, si in self.impulses[x].items():
+                if k is not 0:
+                    if si > 0:
+                        matrix[m, k:] += channel[:-k]
+                    else:
+                        matrix[m,:k] += channel[-k:]
+                m += 1
+            output_sig[:,x] = np.sum(np.multiply( \
+                list(self.impulses[x].values()), matrix.T), axis=1)
+            # restore the original levels of the input signal
+            output_sig[:,x] = restore(output_sig[:,x], input_sig[:,x])
+        return output_sig 
     
-    Parameters
-    ----------
-    input_sig : n-dimension numpy array
-        The input signal to convolve with the generated VNS.
-    impulse_response : 2d numpy array
-        A list containing the velvet noise sequences 
-        to convolve with the input signal for each channel.
+    def decorrelate(self, input_sig, num_channels=2):
+        self.vns = []
+        self.impulses = []
+        for i in range(num_channels):
+            self.generate(self.p, self.fs, self.dur)
+        # if the input is mono, then duplicate it to stereo before convolving
+        if input_sig.ndim == 1:
+            input_sig = np.column_stack((input_sig, input_sig))
+        # convert to 32 bit floating point, if it isn't already
+        if input_sig.dtype != 'float32':
+            input_sig = tofloat32(input_sig)        
+        return self.convolve(input_sig, num_channels)
+    @measure
+    def generate(self, p, fs, dur):
+        '''
+        Generates a velvet noise sequence as a finite impulse response filter
+        to convolve with an input signal.
+        To avoid audible smearing of transients the following are applied:
+            - A segmented decay envelope.
+            - Logarithmic impulse distribution.
+        Segmented decay is preferred to exponential decay because it uses
+        less multiplication, and produces satisfactory results.
     
-    Returns
-    ----------
-    output_sig : 2d numpy array
-         the output signal in stereo
-    '''
-    # if the input is mono, then duplicate it to stereo before convolving
-    if input_sig.ndim == 1:
-        input_sig = np.column_stack((input_sig, input_sig))
-    # convert to 32 bit floating point, if it isn't already
-    if input_sig.dtype != 'float32':
-        input_sig = tofloat32(input_sig)           
-    output_sig = np.empty((len(input_sig), 2)) 
-    # perform the convolution
-    # for each channel
-    for i, channel in enumerate(input_sig.T):
-        # for further optimization, store the non-zero values
-        # of the VNS in two seperate arrays
-        k_pos = []
-        k_neg = []  
-        if i < len(impulse_response):
-            for _, v in enumerate(impulse_response[i]):
-                if v == 0:
-                    continue
-                elif v > 0:
-                    k_pos.append(i)
-                else:
-                    k_neg.append(i)
-        # for each sample in the input signal
-        # perform the convolution
-        # and add the positive and negative sums
-        for n, _ in enumerate(input_sig):
-            pos_sum = sum(channel[n - imp] for _, imp in enumerate(k_pos))
-            neg_sum = sum(channel[n - imp] for _, imp in enumerate(k_neg))
-            output_sig[n][i] = (pos_sum - neg_sum) 
-        # restore the original levels of the input signal
-        output_sig[:,i] = restore(output_sig[:,i], input_sig[:,i])
-    return output_sig
-
-def vn_generate(p, fs, dur):
-    '''
-    Generates a velvet noise sequence for a finite impulse response
-    to convolve with an input signal.
-    To avoid audible smearing of transients the following are applied:
-        - A segmented decay envelope.
-        - Logarithmic impulse distribution.
-    Segmented decay is preferred to exponential decay because it uses
-    less multiplication, and produces satisfactory results.
-
-    Parameters
-    ----------
-    p : int
-        The density measured in spikes/impulses per second.
-    fs : int
-        The sample rate.
-    dur : float
-        The duration of the sequence in seconds.
-    
-    Returns
-    ----------
-    impulse_response: numpy array
-        The generated velvet noise sequence.
-    
-    '''
-    # size of the sequence in samples
-    Ls = round(fs * dur) 
-    # average spacing between two impulses (grid size)
-    Td = fs / p
-    # total number of impulses
-    M = round(Ls / Td)
-    # calculate the grid size between each impulse logarithmically
-    # use a lambda function to be able to apply this for each impulse index
-    Tdl = lambda m : (Ls / 100) * pow(10, (m - 2) / M)
-    # number of segments
-    I = 4
-    # coefficient values for segmented decay can be set manually
-    si = [0.95, 0.5, 0.25, 0.1]
-    impulse_response = np.zeros((Ls,), np.float32)
-    for i, v in enumerate(impulse_response):
-        # first, randomize sign of the impulse
-        v = (2 * round(r.random()) - 1) 
-        # now randomize the distance between impulses
-        index = round(i * Td + r.random() * (Td - 1))
-        if index < len(impulse_response):
-            # multiply a segmented decay constant based on impulse index
-            v *= si[int(index / (Ls / I))]
+        Parameters
+        ----------
+        p : int
+            The density measured in spikes/impulses per second.
+        fs : int
+            The sample rate.
+        dur : float
+            The duration of the sequence in seconds.
+        
+        Returns
+        ----------
+        vns: numpy array
+            The generated velvet noise sequence.
+        
+        '''
+        # size of the sequence in samples
+        Ls = int(round(fs * dur))
+        # average spacing between two impulses (grid size)
+        Td = fs / p
+        # total number of impulses
+        M = int(Ls / Td)
+        # calculate the grid size between each impulse logarithmically
+        # use a lambda function to be able to apply this for each impulse index
+        Tdl = lambda m : (Ls / 100) * pow(10, (m-2) / float(M))
+        vns = np.zeros((Ls,), np.float32)
+        impulses = {}
+        for m in range(M):
+            # first, randomize sign of the impulse
+            s = (2 * round(r.random()) - 1)
             # logarithmically distribute the impulses
-            index = round(r.random() * (Tdl(i) - 1))
-            index += round(sum((Tdl(j) for j in range(i))))
-            if index < len(impulse_response):
-                index = int(index)
-                impulse_response[index] = v
-    return impulse_response
+            k = round(r.random() * (Tdl(m) - 1)) \
+                + int(np.floor(sum((Tdl(i) for i in range(m)))))
+            # store the index and corresponding scalar for segmented decay
+            scalar = self.si[int(m / (M / self.I))]
+            impulses[k] = s * scalar
+            if k < len(vns):
+                vns[k] = s * scalar
+        self.vns.append(vns)
+        self.impulses.append(impulses)
+   
+    def conv(self, input_sig, channel):
+        result = np.convolve(input_sig, self.vns[channel], mode='same')
+        return restore(result, input_sig)
 #%%
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
-    DENSITY = 1000 # measured in spikes/impulses per second 
+    import scipy.io.wavfile as wavfile
+    
+    # Make an adjustable parameter
     VNS_DURATION = 0.03 # duration of VNS in seconds
-    sample_rate, sig_float32 = wavfile.read("drums.wav")
-    r.seed(a=4)
-    vns = [vn_generate(DENSITY, sample_rate, VNS_DURATION), \
-    vn_generate(DENSITY, sample_rate, VNS_DURATION)]
-    result = vn_convolve(sig_float32, vns)
-    wavfile.write("drums_decorrelated.wav", sample_rate, result) 
-    fs, sf32 = wavfile.read("correct.wav")
+    
+    # Make internal to the class
+    M = 30 # number of impulses
+    DENSITY = int(M / VNS_DURATION) # measured in impulses per second 
+    
+    sample_rate, sig_float32 = wavfile.read("audio/piano.wav")
+    #r.seed(a=6)
+    vnd = VelvetNoise(DENSITY, sample_rate, VNS_DURATION)
+    result = vnd.decorrelate(sig_float32)
+    
+    @measure
+    def np_convolve():
+        vnd.generate(DENSITY, sample_rate, VNS_DURATION)
+        vnd.generate(DENSITY, sample_rate, VNS_DURATION)
+        return np.array([vnd.conv(sig_float32, 0), vnd.conv(sig_float32, 1)]).T
+    #result = np_convolve()
+    
+    # By doing this convolution we calculate the side content,
+    # given a mono signal.
+    # convert Mid-Side channels to L-R channels 
+    # L = M + S , R = M - S
+    #result = np.array([np.add(sig_float32, result), np.subtract(sig_float32, result)])
+    #result = np.reshape(result, (int(result.size/2), 2))
+    vns = vnd.vns
+
+    wavfile.write("audio/piano_decorrelated2.wav", sample_rate, result) 
+    fs, sf32 = wavfile.read("audio/correct.wav")
 
     plt.figure()
     plt.plot(vns[0])
