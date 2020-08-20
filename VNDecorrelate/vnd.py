@@ -2,7 +2,6 @@ import random as r
 import numpy as np
 
 # TODO: 
-# Optimize convolve function
 # Finish decorrelate function 
     # Test L-R decorrelation vs. Mid-Side decorrelation
     # Test for stereo to stereo decorrelation
@@ -104,7 +103,8 @@ class VelvetNoise():
     def convolve(self, input_sig, num_channels=2):
         '''
         Performs the convolution of the velvet noise filters 
-        onto a signal. We take advantage of the sparse nature of the sequence
+        onto each channel of a signal. 
+        We take advantage of the sparse nature of the sequence
         to do the convolution very quickly.
         
         Parameters
@@ -121,20 +121,12 @@ class VelvetNoise():
              the output signal in stereo
         '''
         output_sig = np.zeros((len(input_sig), num_channels))
-        # perform a segmented convolution for each channel
         for x, channel in enumerate(input_sig.T):
             matrix = np.zeros((len(self.impulses[x]), len(channel)))
-            m = 0
-            for k, si in self.impulses[x].items():
-                if k is not 0:
-                    if si > 0:
-                        matrix[m, k:] += channel[:-k]
-                    else:
-                        matrix[m,:k] += channel[-k:]
-                m += 1
-            output_sig[:,x] = np.sum(np.multiply( \
-                list(self.impulses[x].values()), matrix.T), axis=1)
-            # restore the original levels of the input signal
+            for m, k in enumerate(self.impulses[x].keys()):
+                if k != 0:
+                    matrix[m,k:] += channel[:-k]
+            output_sig[:,x] = np.sum(np.multiply(list(self.impulses[x].values()), matrix.T), axis=1)
             output_sig[:,x] = restore(output_sig[:,x], input_sig[:,x])
         return output_sig 
     
@@ -194,10 +186,10 @@ class VelvetNoise():
             k = round(r.random() * (Tdl(m) - 1)) \
                 + int(np.floor(sum((Tdl(i) for i in range(m)))))
             # store the index and corresponding scalar for segmented decay
-            scalar = self.si[int(m / (M / self.I))]
-            impulses[k] = s * scalar
+            scalar = self.si[int(m / (M / self.I))] * s
             if k < len(vns):
-                vns[k] = s * scalar
+                impulses[k], vns[k] = (scalar, scalar)
+        print(len(impulses))
         self.vns.append(vns)
         self.impulses.append(impulses)
    
@@ -216,7 +208,7 @@ if __name__ == '__main__':
     M = 30 # number of impulses
     DENSITY = int(M / VNS_DURATION) # measured in impulses per second 
     
-    sample_rate, sig_float32 = wavfile.read("audio/piano.wav")
+    sample_rate, sig_float32 = wavfile.read("audio/vocal.wav")
     #r.seed(a=6)
     vnd = VelvetNoise(DENSITY, sample_rate, VNS_DURATION)
     result = vnd.decorrelate(sig_float32)
@@ -236,7 +228,7 @@ if __name__ == '__main__':
     #result = np.reshape(result, (int(result.size/2), 2))
     vns = vnd.vns
 
-    wavfile.write("audio/piano_decorrelated2.wav", sample_rate, result) 
+    wavfile.write("audio/vocal_decorrelated.wav", sample_rate, result) 
     fs, sf32 = wavfile.read("audio/correct.wav")
 
     plt.figure()
