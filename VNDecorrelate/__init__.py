@@ -1,4 +1,1 @@
-import random
-import matplotlib.pyplot as plt
-import scipy.io.wavfile as wavfile
-import numpy as np
+import os, sys; sys.path.append(os.path.dirname(os.path.realpath(__file__)))
