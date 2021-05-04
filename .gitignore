@@ -127,3 +127,12 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# audio examples
+VNDecorrelate/audio/
+
+# test files
+VNDecorrelate/ex-2.py
+VNDecorrelate/real_time_ex.py
+VNDecorrelate/sd_ex.py
+VNDecorrelate/test.py
