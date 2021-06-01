@@ -3,16 +3,9 @@ import numpy as np
 
 # TODO:
 
-# Optimize generate function (vectorize)
 # Finish documentation of VelvetNoise class
 # Put example code in a seperate file, so vnd.py only requires numpy
-# Try low pass filtering input signal at 3.5kHz
-
-# Completed since last commit:
-# -1 to 1 floating point normalization for non-fp inputs
-# Fixed stereo to stereo decorrelation
-# Fixed Logarithmic impulse distribution to work for any M
-# Implemented Haas Effect Decorrelation (LR and MS)
+# Implement Multiband decorrelation: higher frequencies -> more decorrelated
 
 from functools import wraps
 from time import time
@@ -77,12 +70,13 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
     """
 
     # convert to 32 bit floating point, if it isn't already.
-    # Then normalize so that the data ranges from -1 to 1.
     if input_sig.dtype != np.float32:
-            audio_sig = input_sig.astype(np.float32)
-            audio_sig = audio_sig / np.max(audio_sig)
+        audio_sig = input_sig.astype(np.float32)
     else:
         audio_sig = input_sig
+    # normalize so that the data ranges from -1 to 1 if it doesn't already.
+    if np.max(np.abs(audio_sig)) > 1:
+        audio_sig = audio_sig / np.max(audio_sig)
     delay_len_samples = round(delay_time * fs)
     mono = False
     # if the input was mono, convert it to stereo.
@@ -91,13 +85,17 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
         audio_sig = np.column_stack((audio_sig, audio_sig))
 
     # if applicable, convert the left-right signal to a mid-side signal.
-    # Mid-Side and L-R channel conversions
+    # Mid-Side and L-R channel conversions:
+    #    L = M + S
+    #    R = M − S
+    #    S = L − R / 2
+    #    M = L + R / 2
     if mode == 'MS':
-        mids = (audio_sig[:, 0] + audio_sig[:, 1]) / 2
+        mids = (audio_sig[:, 0] + audio_sig[:, 1]) * 0.5
         if mono: # sides will be silent
             sides = mids # this is techincally incorrect, but we fix it later.
         else:
-            sides = (audio_sig[:, 0] - audio_sig[:, 1]) / 2
+            sides = (audio_sig[:, 0] - audio_sig[:, 1]) * 0.5
         # now stack them and store back into audio_sig
         audio_sig = np.column_stack((mids, sides))
 
@@ -116,8 +114,8 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
         R = audio_sig[:, 0] - audio_sig[:, 1]
         if mono:
             # we duplicated the mono channel, here we compensate for it.
-            L /= 2
-            R /= 2
+            L *= 0.5
+            R *= 0.5
         # now stack them and store back into audio_sig
         audio_sig = np.column_stack((L, R))
 
@@ -164,7 +162,7 @@ class VelvetNoise():
                 matrix[m, k:] += channel[:-k] if k else channel
             decay = list(self.impulses[x].values())
             output_sig[:, x] = np.sum(np.multiply(decay, matrix.T), axis=1)
-        return output_sig
+        return output_sig / np.sum(np.abs(decay))
 
     def decorrelate(self, input_sig, num_outs, regenerate=False):
         self.num_outs = num_outs
@@ -178,10 +176,9 @@ class VelvetNoise():
         # if the input is mono, then duplicate it to stereo before convolving
         if input_sig.ndim != self.num_outs:
             input_sig = np.column_stack((input_sig, input_sig))
-        output_sig = input_sig + self.convolve(input_sig)
+        output_sig = input_sig + self.convolve(input_sig) * 0.5
         output_sig = haas_delay(output_sig, self.ms, self.fs, 1, mode='MS')
         output_sig = haas_delay(output_sig, self.lr, self.fs, 1, mode='LR')
-        rms_normalize(input_sig, output_sig)
         return output_sig
 
     def generate(self, p, dur):
@@ -238,42 +235,22 @@ class VelvetNoise():
             self.vns.append(vns)
             self.impulses.append(impulses)
 
-    def np_convolve(self, input_sig, channel):
-        result = np.convolve(input_sig, self.vns[channel], mode='same')
-        rms_normalize(input_sig, result)
-        return result
-
 # %%
 if __name__ == '__main__':
     import matplotlib.pyplot as plt
     import scipy.io.wavfile as wavfile
-    import scipy.signal as s
 
     VNS_DURATION = 0.03  # duration of VNS in seconds
     M = 120  # number of impulses
     DENSITY = int(M / VNS_DURATION)  # measured in impulses per second
 
-    sample_rate, sig_float32 = wavfile.read("audio/vocal.wav")
-    #sig_float32 = sig_float32[:, 0]
-    a = 0
+    sample_rate, sig_float32 = wavfile.read("audio/guitar.wav")
     a = 2
     vnd = VelvetNoise(sample_rate, p=DENSITY, dur=VNS_DURATION, seed=a)
     result = vnd.decorrelate(sig_float32, num_outs=2)
     vns = np.array(vnd.vns).T
 
-    @measure
-    def np_decorrelate(sig):
-        return np.array([vnd.np_convolve(sig, 0), vnd.np_convolve(sig, 1)]).T
-    #result = np_decorrelate(sig_float32)
-
-    @measure
-    def scipy_decorrelate(sig, vns):
-        sig = np.column_stack((sig, sig))
-        return s.oaconvolve(sig, vns)
-    #sig_float32 = np.column_stack((sig_float32, sig_float32))
-    #result = scipy_decorrelate(sig_float32, vns)
-
-    wavfile.write("audio/vocal_dec.wav", sample_rate, result)
+    wavfile.write("audio/guitar_dec.wav", sample_rate, result)
 
     plt.figure()
     plt.plot(vns[:, 0])
