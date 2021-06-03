@@ -76,7 +76,7 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
         audio_sig = input_sig
     # normalize so that the data ranges from -1 to 1 if it doesn't already.
     if np.max(np.abs(audio_sig)) > 1:
-        audio_sig = audio_sig / np.max(audio_sig)
+        audio_sig /= np.max(audio_sig)
     delay_len_samples = round(delay_time * fs)
     mono = False
     # if the input was mono, convert it to stereo.
@@ -88,8 +88,8 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
     # Mid-Side and L-R channel conversions:
     #    L = M + S
     #    R = M − S
-    #    S = L − R / 2
-    #    M = L + R / 2
+    #    S = (L − R) / 2
+    #    M = (L + R) / 2
     if mode == 'MS':
         mids = (audio_sig[:, 0] + audio_sig[:, 1]) * 0.5
         if mono: # sides will be silent
