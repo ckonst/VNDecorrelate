@@ -1,4 +1,3 @@
-import random as r
 import numpy as np
 
 # TODO:
@@ -122,7 +121,7 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
     return audio_sig
 
 class VelvetNoise():
-    def __init__(self, fs, p=1000, dur=0.03, lr=0.0197, ms=0.0096, seed=0):
+    def __init__(self, fs, p=1000, dur=0.03, lr=0.0197, ms=0.0096):
         self.p = p  # density in impulses per second
         self.fs = fs  # sampling rate
         self.dur = dur  # duration in seconds
@@ -131,7 +130,6 @@ class VelvetNoise():
         self.impulses = []  # non-zero elements of the VNS
         self.lr = lr # left-right delay in ms
         self.ms = ms # mide-side delay in ms
-        self.seed = seed  # the seed for the vns generator
         self.generate(self.p, self.dur)  # init filters
 
     def convolve(self, input_sig):
@@ -155,14 +153,16 @@ class VelvetNoise():
              the output signal in stereo
         """
 
-        output_sig = np.zeros((len(input_sig), self.num_outs))
+        sig_len = len(input_sig)
+        output_sig = np.zeros((sig_len, self.num_outs))
         for x, channel in enumerate(input_sig.T):
-            matrix = np.zeros((len(self.impulses[x]), len(channel)))
+            matrix = np.zeros((len(self.impulses[x]), sig_len))
             for m, k in enumerate(self.impulses[x].keys()):
-                matrix[m, k:] += channel[:-k] if k else channel
+                matrix[m, :-k if k else sig_len] += channel[k:]
             decay = list(self.impulses[x].values())
-            output_sig[:, x] = np.sum(np.multiply(decay, matrix.T), axis=1)
-        return output_sig / np.sum(np.abs(decay))
+            output_sig[:, x] = np.sum(decay * matrix.T, axis=1)
+        rms_normalize(input_sig, output_sig)
+        return output_sig
 
     def decorrelate(self, input_sig, num_outs, regenerate=False):
         self.num_outs = num_outs
@@ -176,7 +176,7 @@ class VelvetNoise():
         # if the input is mono, then duplicate it to stereo before convolving
         if input_sig.ndim != self.num_outs:
             input_sig = np.column_stack((input_sig, input_sig))
-        output_sig = input_sig + self.convolve(input_sig) * 0.5
+        output_sig = (input_sig + self.convolve(input_sig)) * 0.5
         output_sig = haas_delay(output_sig, self.ms, self.fs, 1, mode='MS')
         output_sig = haas_delay(output_sig, self.lr, self.fs, 1, mode='LR')
         return output_sig
@@ -198,8 +198,6 @@ class VelvetNoise():
         dur : float
             The duration of the sequence in seconds.
         """
-        if self.seed:
-            r.seed(self.seed)
         self.vns = []
         self.impulses = []
         # size of the sequence in samples
@@ -209,7 +207,7 @@ class VelvetNoise():
         # total number of impulses
         M = int(Ls / Td)
         # coefficient values for segmented decay can be set manually
-        si = [0.95, 0.5, 0.25, 0.1]  # decay coefficients
+        si = [1, 0.9, 0.8, 0.7]  # decay coefficients
         I = len(si)  # number of segments
         # calculate the grid size between each impulse logarithmically
         # use a lambda function to apply this for each impulse index
@@ -241,12 +239,11 @@ if __name__ == '__main__':
     import scipy.io.wavfile as wavfile
 
     VNS_DURATION = 0.03  # duration of VNS in seconds
-    M = 120  # number of impulses
+    M = 30  # number of impulses
     DENSITY = int(M / VNS_DURATION)  # measured in impulses per second
 
     sample_rate, sig_float32 = wavfile.read("audio/guitar.wav")
-    a = 2
-    vnd = VelvetNoise(sample_rate, p=DENSITY, dur=VNS_DURATION, seed=a)
+    vnd = VelvetNoise(sample_rate, p=DENSITY, dur=VNS_DURATION)
     result = vnd.decorrelate(sig_float32, num_outs=2)
     vns = np.array(vnd.vns).T
 
