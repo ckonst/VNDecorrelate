@@ -1,6 +1,8 @@
 import numpy as np
 
-from timing import timed
+from haas_delay import haas_delay
+from utils.dsp import rms_normalize
+from utils.timing import timed
 
 from typing import List, Dict
 
@@ -9,110 +11,10 @@ from typing import List, Dict
 # Abstraction of the Filter and Decorrelator (?)
 # Decouple Haas Delay and Velvet Noise
 
-def rms_normalize(input_sig, output_sig):
-    """
-    Normalizes output_sig in-place to the rms value of input_sig.
-
-    Parameters
-    ----------
-    input_sig : numpy.ndarray
-        The original dry signal.
-    output_sig : numpy.ndarray
-        The signal to normalize.
-
-    Returns
-    -------
-    None.
-
-    """
-    output_sig *= np.sqrt(np.mean(np.square(input_sig))) \
-        /  np.sqrt(np.mean(np.square(np.sum(output_sig, axis=1))))
-
-def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
-    """
-    Return a stereo signal where the specified channel is delayed by delay_time.
-
-    Parameters
-    ----------
-    input_sig : numpy.ndarray
-        The input signal to apply the Haas Effect to.
-    delay_time : float
-        The time in ms to delay by.
-    fs : int
-        The sample rate.
-    channel : int
-        Which channel gets delayed. For stereo audio:
-            0 is the left channel, 1 is the right channel.
-            OR
-            0 is the mid channel, 1 is the side channel.
-    mode : string, optional
-        Either 'LR' (Left-Right) or 'MS' (Mid-Side).
-        If set to MS, then the delay will be applied to the mid or side channel
-        depending on the channel argument.
-        The default is 'LR'.
-
-    Returns
-    -------
-    output_sig : numpy.ndarray
-        The wet signal with one channel delayed.
-
-    """
-
-    # convert to 32 bit floating point, if it isn't already.
-    if input_sig.dtype != np.float32:
-        audio_sig = input_sig.astype(np.float32)
-    else:
-        audio_sig = input_sig
-    # normalize so that the data ranges from -1 to 1 if it doesn't already.
-    if np.max(np.abs(audio_sig)) > 1:
-        audio_sig /= np.max(audio_sig)
-    delay_len_samples = round(delay_time * fs)
-    mono = False
-    # if the input was mono, convert it to stereo.
-    if input_sig.ndim != 2:
-        mono = True
-        audio_sig = np.column_stack((audio_sig, audio_sig))
-
-    # if applicable, convert the left-right signal to a mid-side signal.
-    # Mid-Side and L-R channel conversions:
-    #    L = M + S
-    #    R = M − S
-    #    S = (L − R) / 2
-    #    M = (L + R) / 2
-    if mode == 'MS':
-        mids = (audio_sig[:, 0] + audio_sig[:, 1]) * 0.5
-        if mono: # sides will be silent
-            sides = mids # this is techincally incorrect, but we fix it later.
-        else:
-            sides = (audio_sig[:, 0] - audio_sig[:, 1]) * 0.5
-        # now stack them and store back into audio_sig
-        audio_sig = np.column_stack((mids, sides))
-
-    zero_padding_sig = np.zeros(delay_len_samples)
-    wet_channel = np.concatenate((zero_padding_sig, audio_sig[:, channel]))
-    dry_channel = np.concatenate((audio_sig[:, 0 if channel else 1], zero_padding_sig))
-
-    # get the location of the wet and dry channels
-    # then put them in a tuple so that they can be stacked
-    location = (dry_channel, wet_channel) if channel else (wet_channel, dry_channel)
-    audio_sig = np.column_stack(location)
-
-    # convert back to left-right, if we delayed the mid and sides.
-    if mode == 'MS':
-        L = audio_sig[:, 0] + audio_sig[:, 1]
-        R = audio_sig[:, 0] - audio_sig[:, 1]
-        if mono:
-            # we duplicated the mono channel, here we compensate for it.
-            L *= 0.5
-            R *= 0.5
-        # now stack them and store back into audio_sig
-        audio_sig = np.column_stack((L, R))
-
-    return audio_sig
-
 class VelvetNoise():
-    """
-    A velvet noise decorrelator for audio. See method docstrings for more details.
+    """A velvet noise decorrelator for audio.
+
+    See method docstrings for more details.
 
     Attributes:
         fs : int
@@ -138,8 +40,8 @@ class VelvetNoise():
     """
 
     def __init__(self, fs, p=1000, dur=0.03, lr=0.0197, ms=0.0096, width=0.5):
-        """
-        Impulse density, p, and filter length, dur, are chosen from the velvet noise paper.
+        """Impulse density, p, and filter length, dur, are chosen from the velvet noise paper.
+
         Left-Right and Mid-Side delay values can be chosen to reduce phase incoherence.
         In general, keeping these values under 20ms helps reduce audible doubling artifacts, which are more noticible in mono.
 
@@ -157,9 +59,8 @@ class VelvetNoise():
         self.generate(self.p, self.dur)
 
     def convolve(self, input_sig):
-        """
-        Perform the convolution of the velvet noise filters
-        onto each channel of a signal.
+        """Perform the convolution of the velvet noise filters onto each channel of a signal.
+
         We take advantage of the sparse nature of the sequence
         to perform a latency-free convolution.
 
@@ -187,8 +88,8 @@ class VelvetNoise():
         return output_sig
 
     def decorrelate(self, input_sig, num_outs, regenerate=False, segmented_decay=True, log_distribution=True):
-        """
-        Perform a velvet noise decorrelation on input_sig with num_outs channels.
+        """Perform a velvet noise decorrelation on input_sig with num_outs channels.
+
         As of right now only supports stereo decorrelation (i.e. no quad-channel, 5.1, 7.1, etc. support)
         This method will perform an optimized velvet noise convolution for each channel
         to generate the side channel content.
@@ -235,9 +136,9 @@ class VelvetNoise():
 
     @timed
     def generate(self, p, dur, segmented_decay=True, log_distribution=True):
-        """
-        Generate a velvet noise finite impulse response filter
-        to convolve with an input signal. Overwrites self.vns and self.impulses.
+        """Generate a velvet noise finite impulse response filter to convolve with an input signal.
+
+        Overwrites self.vns and self.impulses.
         To avoid audible smearing of transients the following are applied:
             - A segmented decay envelope.
             - Logarithmic impulse distribution.
