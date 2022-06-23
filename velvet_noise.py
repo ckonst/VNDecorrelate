@@ -130,7 +130,7 @@ class VelvetNoise():
         output_sig = self.convolve(input_sig)
         output_sig[:, 0] = -output_sig[:, 0] * self.width
         output_sig += input_sig * (1 - self.width)
-        output_sig = haas_delay(output_sig, self.ms, self.fs, 1, mode='MS')
+        #output_sig = haas_delay(output_sig, self.ms, self.fs, 1, mode='MS')
         output_sig = haas_delay(output_sig, self.lr, self.fs, 1, mode='LR')
         return output_sig
 
@@ -201,4 +201,4 @@ class VelvetNoise():
             self.impulses.append(impulses)
 
 if __name__ == '__main__':
-    from plot import main; main()
+    from utils.plot import main; main()

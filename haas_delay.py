@@ -1,15 +1,18 @@
 import numpy as np
 
 from decorrelator import Filter
+from utils import dsp
 
-# TODO: Finish implementing this class
 class HaasDelay(Filter):
 
-    def __init__(self):
-        pass
+    def __init__(self, delay_time, fs=44100, channel=0, mode='LR'):
+        self.delay_time = delay_time
+        self.fs = fs
+        self.channel = channel
+        self.mode = mode
 
     def apply(self, input_sig: np.ndarray) -> np.ndarray:
-        pass
+        return haas_delay(input_sig, self.delay_time, self.fs, self.channel, mode=self.mode)
 
 # TODO: Split into functions, each with a single responsibility.
 def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
@@ -42,34 +45,27 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
     """
 
     # convert to 32 bit floating point, if it isn't already.
-    if input_sig.dtype != np.float32:
-        audio_sig = input_sig.astype(np.float32)
-    else:
-        audio_sig = input_sig
+    audio_sig = dsp.to_float32(input_sig)
     # normalize so that the data ranges from -1 to 1 if it doesn't already.
-    if np.max(np.abs(audio_sig)) > 1:
-        audio_sig /= np.max(audio_sig)
+    dsp.peak_normalize(audio_sig)
+
     delay_len_samples = round(delay_time * fs)
     mono = False
+
     # if the input was mono, convert it to stereo.
     if input_sig.ndim != 2:
         mono = True
-        audio_sig = np.column_stack((audio_sig, audio_sig))
+        audio_sig = dsp.mono_to_stereo(audio_sig)
 
     # if applicable, convert the left-right signal to a mid-side signal.
-    # Mid-Side and L-R channel conversions:
-    #    L = M + S
-    #    R = M − S
-    #    S = (L − R) / 2
-    #    M = (L + R) / 2
     if mode == 'MS':
-        mids = (audio_sig[:, 0] + audio_sig[:, 1]) * 0.5
         if mono: # sides will be silent
+            mids = dsp.stereo_to_mono(audio_sig)
             sides = mids # this is techincally incorrect, but we fix it later.
+            # now stack them and store back into audio_sig
+            audio_sig = np.column_stack((mids, sides))
         else:
-            sides = (audio_sig[:, 0] - audio_sig[:, 1]) * 0.5
-        # now stack them and store back into audio_sig
-        audio_sig = np.column_stack((mids, sides))
+            audio_sig = dsp.LR_to_MS(audio_sig)
 
     zero_padding_sig = np.zeros(delay_len_samples)
     wet_channel = np.concatenate((zero_padding_sig, audio_sig[:, channel]))
@@ -82,13 +78,9 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
 
     # convert back to left-right, if we delayed the mid and sides.
     if mode == 'MS':
-        L = audio_sig[:, 0] + audio_sig[:, 1]
-        R = audio_sig[:, 0] - audio_sig[:, 1]
+        audio_sig = dsp.MS_to_LR(audio_sig)
         if mono:
             # we duplicated the mono channel, here we compensate for it.
-            L *= 0.5
-            R *= 0.5
-        # now stack them and store back into audio_sig
-        audio_sig = np.column_stack((L, R))
+            audio_sig *= 0.5
 
     return audio_sig
