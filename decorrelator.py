@@ -13,10 +13,6 @@ from typing import Tuple
 class Filter(ABC):
 
     def __init__(self):
-        self.filter = self._generate()
-
-    @abstractmethod
-    def _generate(self) -> np.ndarray:
         pass
 
     @abstractmethod
@@ -26,7 +22,7 @@ class Filter(ABC):
     def __call__(self, input_sig: np.ndarray) -> np.ndarray:
         return self.apply(input_sig)
 
-class Decorrelator():
+class Decorrelator(ABC):
 
     def __init__(self, filters: Tuple[Tuple[Filter]], num_ins: int = 2, num_outs: int = 2):
         if len(filters) != num_outs:

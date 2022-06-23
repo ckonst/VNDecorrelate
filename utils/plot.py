@@ -23,7 +23,7 @@ def main():
     result = vnd.decorrelate(sig_float32, num_outs=2)
     vns = np.array(vnd.vns).T
 
-    #wavfile.write("audio/guitar_dec.wav", sample_rate, result)
+    wavfile.write("audio/guitar_dec.wav", sample_rate, result)
 
     plt.figure()
     plt.plot(vns[:, 0])
