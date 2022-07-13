@@ -18,18 +18,21 @@ from utils import dsp
 # ----------------------------------------------------------------------------
 
 class Decorrelator(ABC):
+
     """An abstract base class for a Decorrelator.
 
     Attributes:
-        fs: int
+        fs : int
             The sampling frequency of the signal. Default is 44100.
-        num_ins: int
+        num_ins : int
             The number of input channels. Default is 2.
-        num_outs: int
+        num_outs : int
             The number of output channels. Default is 2.
         width : float
             Controls the level of the side channel, as a percent of both the Mid-Side channels [0.0, 1.0]. Default is 1.0.
+
     """
+
     def __init__(self, fs: int = 44100, num_ins: int = 2, num_outs: int = 2, width: float = 0.5):
         self.fs = fs
         self.num_ins = num_ins
@@ -52,11 +55,33 @@ class Decorrelator(ABC):
 # TODO: deferred instantiation?
 class SignalChain(Decorrelator):
 
+    """A simple class for cascading decorrelators.
+
+    Attributes:
+        decorrelators : Sequence[Decorrelator]
+            The sequence containing the Decorrelator objects whose decorrelate methods will be called.
+
+    """
+
     def __init__(self, decorrelators: Sequence[Decorrelator], *args, **kwargs):
+        """Initialize the same way any other decorrelator would."""
         super().__init__(*args, **kwargs)
         self.decorrelators = decorrelators
 
     def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
+        """Decorrelate input_sig with all decorrelators in this SignalChain.
+
+        Parameters
+        ----------
+        input_sig : np.ndarray
+            The original signal.
+
+        Returns
+        -------
+        cascaded_sig : np.ndarray
+            The signal processed by cascading decorrelators.
+
+        """
         for decorrelator in self.decorrelators:
             (cascaded_sig := decorrelator(input_sig))
         return cascaded_sig
@@ -69,11 +94,33 @@ class SignalChain(Decorrelator):
 
 # TODO: finish documentation
 class HaasEffect(Decorrelator):
-    def __init__(self, delay_time: float = 0.02, channel: int = 0, mode: str = 'LR',
-                 width: float = 1.0, *args, **kwargs):
+
+    """A Decorrelator that utilizes the Haas Effect.
+
+    In music, the Haas Effect delays a channel or channels by a small amount to alter the cross correlation between each channel.
+    For stereo audio, this can be easily done on either the left or right channel, or on the mid or side channel for different results.
+
+    Attributes:
+        delay_time : float
+            The time in seconds to delay the channel by.
+        channel : int
+            Which channel gets delayed. For stereo audio:
+                0 is the left channel, 1 is the right channel.
+                OR
+                0 is the mid channel, 1 is the side channel.
+        mode : str
+            Either 'LR' (Left-Right) or 'MS' (Mid-Side).
+            If set to MS, then the delay will be applied to the mid or side channel
+            depending on the channel argument.
+            The default is 'LR'.
+
+    """
+
+    def __init__(self, delay_time: float = 0.02, channel: int = 0, mode: str = 'LR', width: float = 1.0, *args, **kwargs):
         """Left-Right and Mid-Side delay values can be chosen to reduce phase incoherence.
 
-        In general, keeping these values under 20ms helps reduce audible doubling artifacts, which are more noticible in mono.
+        In general, keeping these values under 20ms helps reduce audible doubling artifacts,
+        which are more noticible in mono.
         """
         super().__init__(width=width, *args, **kwargs)
         self.delay_time = delay_time
@@ -92,7 +139,7 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
     input_sig : numpy.ndarray
         The input signal to apply the Haas Effect to.
     delay_time : float
-        The time in ms to delay by.
+        The time in seconds to delay by.
     fs : int
         The sample rate.
     channel : int
@@ -112,7 +159,6 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
         The wet signal with one channel delayed.
 
     """
-
     # convert to 32 bit floating point, if it isn't already.
     audio_sig = dsp.to_float32(input_sig)
     # normalize so that the data ranges from -1 to 1 if it doesn't already.
@@ -163,6 +209,7 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
 # TODO:
 # Implement Multiband decorrelation: higher frequencies -> more decorrelated
 class VelvetNoise(Decorrelator):
+
     """A velvet noise decorrelator for audio.
 
     See method docstrings for more details.
@@ -172,7 +219,7 @@ class VelvetNoise(Decorrelator):
             Impulse density in impulses per second. Default is 1000.
         duration : float
             The duration of the velvet noise sequence in seconds. Default is 0.03.
-        segment_scalars: Sequence[float]
+        segment_scalars : Sequence[float]
             The sequence of coefficients for segmented decay, one for each segment.
         seed : int
             The seed for the velvet noise generator.
@@ -181,9 +228,7 @@ class VelvetNoise(Decorrelator):
 
     def __init__(self, density: int = 1000, duration: float = 0.03, segment_scalars: Sequence[float] = None,
                  log_distribution=True, seed: int = None, *args, **kwargs):
-        """Impulse density, and filter length defaults are chosen from the velvet noise paper.
-
-        """
+        """Impulse density, and filter length defaults are chosen from the velvet noise paper."""
         super().__init__(*args, **kwargs)
         self.density = density
         self.duration = duration
@@ -298,7 +343,7 @@ class VelvetNoise(Decorrelator):
 
         Returns
         -------
-        velvet_noise: List[List[List[List[int]]]]
+        velvet_noise : List[List[List[List[int]]]]
             see self._vn_sequences in __init__
 
         """
@@ -341,6 +386,7 @@ class VelvetNoise(Decorrelator):
         self._vn_sequences = self.generate()
 
 def main():
+    """Example usage."""
     import scipy.io.wavfile as wavfile
     fs, sig_float32 = wavfile.read("audio/guitar.wav")
     decorrelators = (
