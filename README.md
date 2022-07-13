@@ -3,7 +3,7 @@ A Velvet-Noise Decorrelator for audio
 
 ## Example Usage
 
-```
+```python
 from VNDecorrelate.decorrelation import VelvetNoise
 import scipy.io.wavfile as wavfile
 

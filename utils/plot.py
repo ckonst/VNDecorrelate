@@ -6,13 +6,15 @@ Created on Mon Jun 20 18:42:27 2022
 """
 
 import matplotlib.pyplot as plt
+import numpy as np
 import scipy.io.wavfile as wavfile
 
 from decorrelation import VelvetNoise
 
 # TODO: Plot Autocorrelogram and Cross Correlogram of Sine-sweep signal
 
-def plot_signal(input_sig, title='Signal'):
+def plot_signal(input_sig: np.ndarray, title: str = 'Signal') -> None:
+    """Plot the time domain input signal."""
     plt.figure()
     plt.plot(input_sig)
     plt.xlabel('Samples')
@@ -20,6 +22,7 @@ def plot_signal(input_sig, title='Signal'):
     plt.title(title)
 
 def main():
+    """Plot input and output signals, and velvet noise sequences."""
     VNS_DURATION = 0.03 # duration of VNS in seconds
     M = 30 # number of impulses
     DENSITY = int(M / VNS_DURATION) # measured in impulses per second
