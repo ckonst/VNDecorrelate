@@ -7,6 +7,60 @@ Created on Tue Jun 21 23:01:14 2022
 
 import numpy as np
 
+def apply_stereo_width(input_sig: np.ndarray, width: float) -> np.ndarray:
+    """Return input_sig with the Mid-Side balance interpolated at width.
+
+    input_sig MUST be a Left-Right stereo signal of shape (n, 2).
+
+    Parameters
+    ----------
+    input_sig : np.ndarray
+        The original signal.
+    width : float
+        The percentage to scale the side channel by [0.0, 1.0].
+
+    Returns
+    -------
+    np.ndarray
+        The width-adjusted signal.
+
+    """
+    input_sig = LR_to_MS(input_sig)
+    input_sig[:, 0] *= (1.0 - width)
+    input_sig[:, 1] *= width
+    input_sig *= 2.0
+    return MS_to_LR(input_sig)
+
+def encode_signal_to_side_channel(input_sig: np.ndarray, decorrelated_sig: np.ndarray) -> np.ndarray:
+    """Encodes decorrelated_sig to be the side channel of input_sig.
+
+    input_sig and decorrelated_sig MUST be a Left-Right stereo signal of shape (n, 2).
+    Assumes that input_sig is a mono signal duplicated to stereo,
+    i.e. input_sig's side channel will be overwritten.
+
+    Parameters
+    ----------
+    input_sig : np.ndarray
+        The original signal.
+    input_sig : np.ndarray
+        The original signal.
+
+    Returns
+    -------
+    np.ndarray
+        The newly-encoded signal.
+
+    """
+    _check_stereo(input_sig)
+    _check_stereo(decorrelated_sig)
+    L = input_sig[:, 0]
+    R = input_sig[:, 1]
+    Ld = decorrelated_sig[:, 0]
+    Rd = decorrelated_sig[:, 1]
+    M = L + R
+    S = Ld - Rd
+    return np.column_stack(((M + S) / 2, ((M - S) / 2)))
+
 def to_float32(input_sig: np.ndarray) -> np.ndarray:
     """Return input_sig as an array of 32 bit floats.
 
@@ -19,7 +73,7 @@ def to_float32(input_sig: np.ndarray) -> np.ndarray:
     -------
     np.ndarray
         The array with dtype=np.float32
-        
+
     """
     if input_sig.dtype != np.float32:
         return input_sig.astype(np.float32)
