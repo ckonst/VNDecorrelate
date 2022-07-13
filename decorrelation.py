@@ -8,17 +8,33 @@ Created on Mon Jun 20 22:18:33 2022
 import numpy as np
 
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple
+from typing import List, Sequence
 from utils import dsp
 
+# ----------------------------------------------------------------------------
+#
 # Abstract Decorrelator Class
 #
 # ----------------------------------------------------------------------------
 
 class Decorrelator(ABC):
+    """An abstract base class for a Decorrelator.
 
-    def __init__(self):
-        pass
+    Attributes:
+        fs: int
+            The sampling frequency of the signal. Default is 44100.
+        num_ins: int
+            The number of input channels. Default is 2.
+        num_outs: int
+            The number of output channels. Default is 2.
+        width : float
+            Controls the level of the side channel, as a percent of both the Mid-Side channels [0.0, 1.0]. Default is 1.0.
+    """
+    def __init__(self, fs: int = 44100, num_ins: int = 2, num_outs: int = 2, width: float = 0.5):
+        self.fs = fs
+        self.num_ins = num_ins
+        self.num_outs = num_outs
+        self.width = width
 
     @abstractmethod
     def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
@@ -33,26 +49,17 @@ class Decorrelator(ABC):
 #
 # ----------------------------------------------------------------------------
 
-class SignalChain():
+# TODO: deferred instantiation?
+class SignalChain(Decorrelator):
 
-    def __init__(self, filters: Tuple[Tuple[Decorrelator]],
-                 num_ins: int = 2, num_outs: int = 2):
-        if len(filters) != num_outs:
-            raise ValueError('Number of filters does not match number of output channels.')
-        self.filters = filters
-        self.num_ins = num_ins
-        self.num_outs = num_outs
+    def __init__(self, decorrelators: Sequence[Decorrelator], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.decorrelators = decorrelators
 
     def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
-        output_sig = input_sig
-        for ch in self.num_outs:
-            for filt in self.filters:
-                (cascaded_sig := filt[ch](input_sig[:, ch]))
-            output_sig[:, ch] = cascaded_sig
-        return output_sig
-
-    def __call__(self, input_sig: np.ndarray) -> np.ndarray:
-        return self.decorrelate(input_sig)
+        for decorrelator in self.decorrelators:
+            (cascaded_sig := decorrelator(input_sig))
+        return cascaded_sig
 
 # ----------------------------------------------------------------------------
 #
@@ -60,17 +67,23 @@ class SignalChain():
 #
 # ----------------------------------------------------------------------------
 
+# TODO: finish documentation
 class HaasEffect(Decorrelator):
+    def __init__(self, delay_time: float = 0.02, channel: int = 0, mode: str = 'LR',
+                 width: float = 1.0, *args, **kwargs):
+        """Left-Right and Mid-Side delay values can be chosen to reduce phase incoherence.
 
-    def __init__(self, delay_time, fs=44100, channel=0, mode='LR'):
+        In general, keeping these values under 20ms helps reduce audible doubling artifacts, which are more noticible in mono.
+        """
+        super().__init__(width=width, *args, **kwargs)
         self.delay_time = delay_time
-        self.fs = fs
         self.channel = channel
         self.mode = mode
 
     def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
         return haas_delay(input_sig, self.delay_time, self.fs, self.channel, mode=self.mode)
 
+# TODO: consolidate with HaasEffect class
 def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
     """Return a stereo signal where the specified channel is delayed by delay_time.
 
@@ -148,59 +161,50 @@ def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
 # ----------------------------------------------------------------------------
 
 # TODO:
-# Optimize Velvet Noise convolution
-# Give variables better names
 # Implement Multiband decorrelation: higher frequencies -> more decorrelated
-# Decouple Haas Effect and Velvet Noise
-
 class VelvetNoise(Decorrelator):
     """A velvet noise decorrelator for audio.
 
     See method docstrings for more details.
 
     Attributes:
-        fs : int
-            The sample rate.
-        p : int
-            Impulse density in impulses per second.
-        dur : float
-            The duration of the velvet noise sequence in seconds.
-        width : float
-            Controls the level of the side channel, as a percent of both the Mid-Side channels.
-        num_outs : int
-            The number of output channels.
-        vns : List[numpy.ndarray]
-            Velvet noise sequences, one for each channel.
-            Mainly for plotting with matplotlib or naive convolution with numpy.convolve
-        impulses : List[Dict[int, int]]
-            For each channel, store locations of nonzero impulses mapped to their sign (1 or -1).
-        lr : float
-            Left-Right delay in ms.
-        ms : float
-            Mid-side delay in ms.
+        density : int
+            Impulse density in impulses per second. Default is 1000.
+        duration : float
+            The duration of the velvet noise sequence in seconds. Default is 0.03.
+        segment_scalars: Sequence[float]
+            The sequence of coefficients for segmented decay, one for each segment.
+        seed : int
+            The seed for the velvet noise generator.
 
     """
 
-    def __init__(self, fs, p=1000, dur=0.03, lr=0.0197, ms=0.0096, width=0.5):
-        """Impulse density, p, and filter length, dur, are chosen from the velvet noise paper.
-
-        Left-Right and Mid-Side delay values can be chosen to reduce phase incoherence.
-        In general, keeping these values under 20ms helps reduce audible doubling artifacts, which are more noticible in mono.
+    def __init__(self, density: int = 1000, duration: float = 0.03, segment_scalars: Sequence[float] = None,
+                 log_distribution=True, seed: int = None, *args, **kwargs):
+        """Impulse density, and filter length defaults are chosen from the velvet noise paper.
 
         """
+        super().__init__(*args, **kwargs)
+        self.density = density
+        self.duration = duration
+        if segment_scalars is None:
+            self.segment_scalars = (0.85, 0.55, 0.35, 0.2)
+        else:
+            self.segment_scalars = segment_scalars
+        self.log_distribution = log_distribution
+        self.seed = seed
+        '''
+        _vn_sequences is of shape (num_outs, num_segments, 2, num_positive/num_negative)
 
-        self.fs = fs
-        self.p = p
-        self.dur = dur
-        self.width = width
-        self.num_outs = 2
-        self.vns: List[np.ndarray] = []
-        self.impulses: List[Dict[int, int]] = []
-        self.lr = lr
-        self.ms = ms
-        self.generate(self.p, self.dur)
+        It maps each channel to a list of equal length segments, determined by segment_scalars.
+        Each segment is then split into lists of negative and positive impulses at indices 0 and 1 respectively.
+        Because of the inhomogeneity of the last dimension, this cannot be converted to a numpy array.
+        Dimension 2 (of size 2) could be of Tuples, but for simplicity,
+        I use Lists since the rest of the sequence must be generated with Lists.
+        '''
+        self._vn_sequences: List[List[List[List[int]]]] = self.generate()
 
-    def convolve(self, input_sig):
+    def convolve(self, input_sig: np.ndarray) -> np.ndarray:
         """Perform the convolution of the velvet noise filters onto each channel of a signal.
 
         We take advantage of the sparse nature of the sequence
@@ -208,28 +212,30 @@ class VelvetNoise(Decorrelator):
 
         Parameters
         ----------
-        input_sig : numpy.ndarray
+        input_sig : np.ndarray
             The input signal to convolve with the generated filter.
 
         Returns
         -------
-        output_sig : numpy.ndarray
+        output_sig : np.ndarray
              the output signal in stereo
 
         """
-
         sig_len = len(input_sig)
         output_sig = np.zeros((sig_len, self.num_outs))
-        for x, channel in enumerate(input_sig.T):
-            matrix = np.zeros((len(self.impulses[x]), sig_len))
-            for m, k in enumerate(self.impulses[x].keys()):
-                matrix[m, :-k if k else sig_len] += channel[k:]
-            decay = list(self.impulses[x].values())
-            output_sig[:, x] = np.sum(decay * matrix.T, axis=1)
+        for ci, channel in enumerate(input_sig.T):
+            for si, segment in enumerate(self._vn_sequences[ci]):
+                segmented_sig = np.zeros(sig_len)
+                for k in segment[0]:
+                    segmented_sig[:-k if k else sig_len] -= channel[k:]
+                for k in segment[1]:
+                    segmented_sig[:-k if k else sig_len] += channel[k:]
+                segmented_sig *= self.segment_scalars[si]
+                output_sig[:, ci] += segmented_sig
         dsp.rms_normalize(input_sig, output_sig)
         return output_sig
 
-    def decorrelate(self, input_sig, num_outs, regenerate=False, segmented_decay=True, log_distribution=True):
+    def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
         """Perform a velvet noise decorrelation on input_sig with num_outs channels.
 
         As of right now only supports stereo decorrelation (i.e. no quad-channel, 5.1, 7.1, etc. support)
@@ -240,27 +246,15 @@ class VelvetNoise(Decorrelator):
 
         Parameters
         ----------
-        input_sig : numpy.ndarray
+        input_sig : np.ndarray
             The mono or stereo input signal to upmix or decorrelate.
-        num_outs : int
-            The number of output channels.
-        regenerate : bool, optional
-            Whether or not to call self.generate to replace the velvet noise filters. The default is False.
-        segmented_decay : bool, optional
-            Whether or not self.generate (if used) uses a segmented decay envelope. The default is True.
-        log_distribution : bool, optional
-            Whether or not self.generate (if used) uses logarithmic impulse distribution. The default is True.
 
         Returns
         -------
-        output_sig : numpy.ndarray
+        output_sig : np.ndarray
             The stereoized, decorrelated output signal.
 
         """
-
-        self.num_outs = num_outs
-        if regenerate:
-            self.generate(self.p, self.dur, segmented_decay, log_distribution)
         # convert to 32 bit floating point, if it isn't already
         input_sig = dsp.to_float32(input_sig)
         # normalize so that the data ranges from -1 to 1
@@ -269,73 +263,93 @@ class VelvetNoise(Decorrelator):
         if input_sig.ndim == 1:
             input_sig = dsp.mono_to_stereo(input_sig)
         output_sig = self.convolve(input_sig)
-        output_sig[:, 0] = -output_sig[:, 0] * self.width
-        output_sig += input_sig * (1 - self.width)
-        output_sig = haas_delay(output_sig, self.ms, self.fs, 1, mode='MS')
-        output_sig = haas_delay(output_sig, self.lr, self.fs, 1, mode='LR')
+        output_sig = dsp.encode_signal_to_side_channel(input_sig, output_sig)
+        output_sig = dsp.apply_stereo_width(output_sig, self.width)
         return output_sig
 
-    def generate(self, p, dur, segmented_decay=True, log_distribution=True):
+    @property
+    def FIR(self) -> np.ndarray:
+        """Return the finite impulse response as a numpy array.
+
+        Returns
+        -------
+        fir : np.ndarray
+            The finite impulse response of the filters as a numpy array of shape (filter_len, num_outs).
+
+        """
+        filter_len = int(self.duration * self.fs)
+        fir = np.zeros((filter_len, self.num_outs))
+        for ci in range(self.num_outs):
+            for si, segment in enumerate(self._vn_sequences[ci]):
+                for k in segment[0]:
+                    fir[k, ci] = -self.segment_scalars[si]
+                for k in segment[1]:
+                    fir[k, ci] = self.segment_scalars[si]
+        return fir
+
+    def generate(self) -> List[List[List[List[int]]]]:
         """Generate a velvet noise finite impulse response filter to convolve with an input signal.
 
-        Overwrites self.vns and self.impulses.
-        To avoid audible smearing of transients the following are applied:
+        To avoid audible smearing of transients the following are optionally applied:
             - A segmented decay envelope.
             - Logarithmic impulse distribution.
         Segmented decay is preferred to exponential decay because it uses
         less multiplication, and produces satisfactory results.
 
-        Parameters
-        ----------
-        p : int
-            The density measured in spikes/impulses per second.
-        dur : float
-            The duration of the sequence in seconds.
-        segmented_decay : bool, optional
-            Whether or not to use a segmented decay envelope. The default is True.
-        log_distribution : bool, optional
-            Whether or not to use logarithmic impulse distribution. The default is True.
+        Returns
+        -------
+        velvet_noise: List[List[List[List[int]]]]
+            see self._vn_sequences in __init__
 
         """
-
-        self.vns = []
-        self.impulses = []
-        # size of the sequence in samples
-        Ls = int(round(self.fs * dur))
+        if self.seed is not None:
+            np.random.seed(self.seed)
+        velvet_noise = []
+        sequence_len = int(round(self.fs * self.duration))
         # average spacing between two impulses (grid size)
-        Td = self.fs / p
-        # total number of impulses
-        M = int(Ls / Td)
+        grid_size = self.fs / self.density
+        num_impulses = int(sequence_len / grid_size)
         # coefficient values for segmented decay can be set manually
-        si = [0.95, 0.6, 0.25, 0.1]  # decay coefficients
-        I = len(si)  # number of segments
+        num_segments = len(self.segment_scalars)
         # calculate the grid size between each impulse logarithmically
-        # use a lambda function to apply this for each impulse index
-        Tdl = lambda m: pow(10, m / M)
-        # impulse location function without logorithmic impulse distribution
+        # use a function to apply this for each impulse index
+        def log_grid_size(m): return pow(10, m / num_impulses)
         # the calculated intervals between impulses
-        intervals = np.array([Tdl(m) for m in range(M)])
-        Tdl_max = np.sum(intervals)
-        for _ in range(self.num_outs):
-            vns = np.zeros((Ls,), np.float32)
-            impulses = {}
-            r1 = np.random.uniform(low=0, high=1, size=M)
-            # first, randomize sign of the impulse
-            s = (2 * np.round(r1)) - 1
-            r2 = np.random.uniform(low=0, high=1, size=M)
-            k = 0
-            for m in range(M):
-                if log_distribution:
-                    # logarithmically distribute the impulses
-                    k = int(np.round(r2[m] * (Tdl(m) - 1)) \
-                        + np.sum(intervals[:m]) * (Ls / Tdl_max))
+        intervals = np.array([log_grid_size(m) for m in range(num_impulses)])
+        sum_intervals = np.sum(intervals)
+        for ch in range(self.num_outs):
+            r1 = np.random.uniform(low=0, high=1, size=num_impulses)
+            r2 = np.random.uniform(low=0, high=1, size=num_impulses)
+            sign = (2 * np.round(r1)) - 1
+            segments = [[[], []] for _ in self.segment_scalars]
+            fir_index = 0 # location of the impulse in the velvet noise sequence
+            for m in range(num_impulses):
+                if self.log_distribution:
+                    fir_index = int(np.round(r2[m] * (log_grid_size(m) - 1)) \
+                        + np.sum(intervals[:m]) * (sequence_len / sum_intervals))
                 else:
-                    k = int(np.round(m * Td + r2[m] * (Td - 1)))
-                if segmented_decay:
-                    # store the index and corresponding scalar for segmented decay
-                    scalar = si[int(m / (M / I))] * s[m]
-                else: scalar = s[m]
-                if k < len(vns):
-                    impulses[k], vns[k] = (scalar, scalar)
-            self.vns.append(vns)
-            self.impulses.append(impulses)
+                    fir_index = int(np.round(m * grid_size + r2[m] * (grid_size - 1)))
+                segment_index = int(m / (num_impulses / num_segments))
+                sign_index = int((sign[m] + 1) / 2)
+                segments[segment_index][sign_index].append(fir_index)
+            # filter out unused segments and append to list
+            velvet_noise.append(list(filter(None, segments)))
+        return velvet_noise
+
+    def regenerate(self) -> None:
+        """Regenerate the velvet noise sequences."""
+        self._vn_sequences = self.generate()
+
+def main():
+    import scipy.io.wavfile as wavfile
+    fs, sig_float32 = wavfile.read("audio/guitar.wav")
+    decorrelators = (
+        VelvetNoise(fs=fs, density=1000, duration=0.03, width=1.0),
+        HaasEffect(0.0197, fs=fs, channel=1, mode='LR'),
+        HaasEffect(0.0096, fs=fs, channel=1, mode='MS'))
+    chain = SignalChain(decorrelators, fs, 1, 2)
+    output_sig = chain(sig_float32)
+    wavfile.write('audio/guitar_dec.wav', fs, output_sig)
+
+if __name__ == '__main__':
+    main()

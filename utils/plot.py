@@ -6,48 +6,36 @@ Created on Mon Jun 20 18:42:27 2022
 """
 
 import matplotlib.pyplot as plt
-import numpy as np
 import scipy.io.wavfile as wavfile
 
 from decorrelation import VelvetNoise
 
 # TODO: Plot Autocorrelogram and Cross Correlogram of Sine-sweep signal
 
+def plot_signal(input_sig, title='Signal'):
+    plt.figure()
+    plt.plot(input_sig)
+    plt.xlabel('Samples')
+    plt.ylabel('Amplitude')
+    plt.title(title)
+
 def main():
-    VNS_DURATION = 0.03  # duration of VNS in seconds
-    M = 30  # number of impulses
-    DENSITY = int(M / VNS_DURATION)  # measured in impulses per second
+    VNS_DURATION = 0.03 # duration of VNS in seconds
+    M = 30 # number of impulses
+    DENSITY = int(M / VNS_DURATION) # measured in impulses per second
 
     sample_rate, sig_float32 = wavfile.read("audio/guitar.wav")
-    vnd = VelvetNoise(sample_rate, p=DENSITY, dur=VNS_DURATION)
-    result = vnd.decorrelate(sig_float32, num_outs=2)
-    vns = np.array(vnd.vns).T
+    vnd = VelvetNoise(fs=sample_rate, density=DENSITY, duration=VNS_DURATION, num_outs=2)
+    result = vnd.decorrelate(sig_float32)
+    vns = vnd.FIR
 
-    wavfile.write("audio/guitar_dec.wav", sample_rate, result)
+    plot_signal(vns[:, 0], title='Velvet Noise Sequence L')
 
-    plt.figure()
-    plt.plot(vns[:, 0])
-    plt.xlabel('Samples')
-    plt.ylabel('Amplitude')
-    plt.title('Velvet Noise Sequence L')
+    plot_signal(vns[:, 1], title='Velvet Noise Sequence R')
 
-    plt.figure()
-    plt.plot(vns[:, 1])
-    plt.xlabel('Samples')
-    plt.ylabel('Amplitude')
-    plt.title('Velvet Noise Sequence R')
+    plot_signal(sig_float32, title='Input')
 
-    plt.figure()
-    plt.plot(sig_float32)
-    plt.xlabel('Samples')
-    plt.ylabel('Amplitude')
-    plt.title('Input')
-
-    plt.figure()
-    plt.plot(result)
-    plt.xlabel('Samples')
-    plt.ylabel('Amplitude')
-    plt.title('Output')
+    plot_signal(result, title='Output')
 
 if __name__ == '__main__':
     main()

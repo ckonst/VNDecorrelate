@@ -11,6 +11,42 @@ from utils import dsp
 
 class DSPTestCase(unittest.TestCase):
 
+    def test_apply_stereo_width(self):
+        x1 = np.random.uniform(size=(100,2))
+        y1 = dsp.apply_stereo_width(x1, 1.0)
+        self.assertTrue(np.sum(dsp.LR_to_MS(y1)[:, 0]) == 0.0)
+        self.assertTrue(np.sum(dsp.LR_to_MS(y1)[:, 1]) != 0.0)
+        x2 = np.random.uniform(size=(100,2))
+        y2 = dsp.apply_stereo_width(x2, 0.0)
+        self.assertTrue(np.sum(dsp.LR_to_MS(y2)[:, 1]) == 0.0)
+        self.assertTrue(np.sum(dsp.LR_to_MS(y2)[:, 0]) != 0.0)
+        x3 = np.full((100, 2), 100)
+        y3 = dsp.apply_stereo_width(x3, 0.5)
+        self.assertTrue(np.sum(y3) == 100 * 100 * 2)
+        x4 = np.full((100, 2), 100)
+        y4 = dsp.apply_stereo_width(x4, 0.25)
+        self.assertTrue(not np.array_equal(x4, y4))
+
+    def test_encode_signal_to_side_channel(self):
+        x1 = np.array([])
+        x2 = np.array([])
+        with self.assertRaises(ValueError):
+            dsp.encode_signal_to_side_channel(x1, x2)
+        x1 = np.zeros((100, 2))
+        with self.assertRaises(ValueError):
+            dsp.encode_signal_to_side_channel(x1, x2)
+        x2 = np.zeros((120, 2))
+        with self.assertRaises(ValueError):
+            dsp.encode_signal_to_side_channel(x1, x2)
+        x2 = np.column_stack((np.zeros(100,), np.full((100,), 100)))
+        y1 = dsp.encode_signal_to_side_channel(x1, x2)
+        y1 = dsp.LR_to_MS(y1)
+        self.assertTrue(np.array_equal(y1[:, 1], (x2[:, 0] - x2[:, 1]) / 2))
+        x2 = np.full((100,2), 100)
+        y1 = dsp.encode_signal_to_side_channel(x1, x2)
+        y1 = dsp.LR_to_MS(y1)
+        self.assertTrue(np.array_equal(y1[:, 1], np.zeros((100,))))
+
     def test_to_float32(self):
         x = np.array([1,2,3,4], dtype=np.int32)
         self.assertTrue(dsp.to_float32(x).dtype == np.float32)
@@ -88,7 +124,6 @@ class DSPTestCase(unittest.TestCase):
         x = np.array([1,2,3,4])
         with self.assertRaises(ValueError):
             dsp.stereo_to_mono(x)
-
 
     def test_MS_to_LR(self):
         x = np.array([[1, 1],[2, 2], [3, 3], [4, 4]])
