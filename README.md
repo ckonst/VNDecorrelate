@@ -8,7 +8,7 @@ from VNDecorrelate.decorrelation import VelvetNoise
 import scipy.io.wavfile as wavfile
 
 fs, sig_float32 = wavfile.read("audio/guitar.wav")
-vnd = VelvetNoise(fs=fs, density=1000, duration=0.03, width=1.0)
+vnd = VelvetNoise(fs=fs, duration=0.03, num_impulses=30, width=1.0)
 
 # you can call the decorrelate method or the decorrelator object itself to process the data
 # output_sig = vnd.decorrelate(sig_float32)

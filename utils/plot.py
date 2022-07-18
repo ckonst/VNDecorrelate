@@ -25,10 +25,9 @@ def main():
     """Plot input and output signals, and velvet noise sequences."""
     VNS_DURATION = 0.03 # duration of VNS in seconds
     M = 30 # number of impulses
-    DENSITY = int(M / VNS_DURATION) # measured in impulses per second
 
     sample_rate, sig_float32 = wavfile.read("audio/guitar.wav")
-    vnd = VelvetNoise(fs=sample_rate, density=DENSITY, duration=VNS_DURATION, num_outs=2)
+    vnd = VelvetNoise(fs=sample_rate, duration=VNS_DURATION, num_impulses=M, num_outs=2)
     result = vnd.decorrelate(sig_float32)
     vns = vnd.FIR
 
