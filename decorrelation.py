@@ -34,6 +34,7 @@ class Decorrelator(ABC):
     """
 
     def __init__(self, fs: int = 44100, num_ins: int = 2, num_outs: int = 2, width: float = 0.5):
+        """Initialize all common parameters."""
         self.fs = fs
         self.num_ins = num_ins
         self.num_outs = num_outs
@@ -41,9 +42,11 @@ class Decorrelator(ABC):
 
     @abstractmethod
     def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
+        """Main decorrelation function that must be implemented in subclasses."""
         pass
 
     def __call__(self, input_sig: np.ndarray) -> np.ndarray:
+        """Alternative way of calling decorrelate."""
         return self.decorrelate(input_sig)
 
 # ----------------------------------------------------------------------------
@@ -92,7 +95,6 @@ class SignalChain(Decorrelator):
 #
 # ----------------------------------------------------------------------------
 
-# TODO: finish documentation
 class HaasEffect(Decorrelator):
 
     """A Decorrelator that utilizes the Haas Effect.
@@ -116,11 +118,12 @@ class HaasEffect(Decorrelator):
 
     """
 
-    def __init__(self, delay_time: float = 0.02, channel: int = 0, mode: str = 'LR', width: float = 1.0, *args, **kwargs):
+    def __init__(self, delay_time: float = 0.02, channel: int = 0, mode: str = 'LR', width: float = 0.5, *args, **kwargs):
         """Left-Right and Mid-Side delay values can be chosen to reduce phase incoherence.
 
         In general, keeping these values under 20ms helps reduce audible doubling artifacts,
         which are more noticible in mono.
+
         """
         super().__init__(width=width, *args, **kwargs)
         self.delay_time = delay_time
@@ -128,77 +131,93 @@ class HaasEffect(Decorrelator):
         self.mode = mode
 
     def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
-        return haas_delay(input_sig, self.delay_time, self.fs, self.channel, mode=self.mode)
+        """Perform a Haas Effect decorrelation on input_sig.
 
-# TODO: consolidate with HaasEffect class
-def haas_delay(input_sig, delay_time, fs, channel, mode='LR'):
-    """Return a stereo signal where the specified channel is delayed by delay_time.
+        Parameters
+        ----------
+        input_sig : np.ndarray
+            The mono or stereo input signal to upmix or decorrelate.
 
-    Parameters
-    ----------
-    input_sig : numpy.ndarray
-        The input signal to apply the Haas Effect to.
-    delay_time : float
-        The time in seconds to delay by.
-    fs : int
-        The sample rate.
-    channel : int
-        Which channel gets delayed. For stereo audio:
-            0 is the left channel, 1 is the right channel.
-            OR
-            0 is the mid channel, 1 is the side channel.
-    mode : string, optional
-        Either 'LR' (Left-Right) or 'MS' (Mid-Side).
-        If set to MS, then the delay will be applied to the mid or side channel
-        depending on the channel argument.
-        The default is 'LR'.
+        Returns
+        -------
+        output_sig : np.ndarray
+            The stereoized, decorrelated output signal.
 
-    Returns
-    -------
-    output_sig : numpy.ndarray
-        The wet signal with one channel delayed.
+        """
+        # convert to 32 bit floating point, if it isn't already
+        input_sig = dsp.to_float32(input_sig)
+        # normalize so that the data ranges from -1 to 1 if it doesn't already
+        dsp.peak_normalize(input_sig)
+        # perform the decorrelation
+        output_sig = self.haas_delay(input_sig)
+        # adjust the width parameter.
+        output_sig = dsp.apply_stereo_width(output_sig)
+        return output_sig
 
-    """
-    # convert to 32 bit floating point, if it isn't already.
-    audio_sig = dsp.to_float32(input_sig)
-    # normalize so that the data ranges from -1 to 1 if it doesn't already.
-    dsp.peak_normalize(audio_sig)
+    def haas_delay(self, input_sig: np.ndarray) -> np.ndarray:
+        """Return a stereo signal where the specified channel is delayed by delay_time.
 
-    delay_len_samples = round(delay_time * fs)
-    mono = False
+        Parameters
+        ----------
+        input_sig : numpy.ndarray
+            The input signal to apply the Haas Effect to.
+        delay_time : float
+            The time in seconds to delay by.
+        fs : int
+            The sample rate.
+        channel : int
+            Which channel gets delayed. For stereo audio:
+                0 is the left channel, 1 is the right channel.
+                OR
+                0 is the mid channel, 1 is the side channel.
+        mode : string, optional
+            Either 'LR' (Left-Right) or 'MS' (Mid-Side).
+            If set to MS, then the delay will be applied to the mid or side channel
+            depending on the channel argument.
+            The default is 'LR'.
 
-    # if the input was mono, convert it to stereo.
-    if input_sig.ndim != 2:
-        mono = True
-        audio_sig = dsp.mono_to_stereo(audio_sig)
+        Returns
+        -------
+        output_sig : numpy.ndarray
+            The wet signal with one channel delayed.
 
-    # if applicable, convert the left-right signal to a mid-side signal.
-    if mode == 'MS':
-        if mono: # sides will be silent
-            mids = dsp.stereo_to_mono(audio_sig)
-            sides = mids # this is techincally incorrect, but we fix it later.
-            # now stack them and store back into audio_sig
-            audio_sig = np.column_stack((mids, sides))
-        else:
-            audio_sig = dsp.LR_to_MS(audio_sig)
+        """
+        output_sig = input_sig
+        delay_len_samples = round(self.delay_time * self.fs)
+        mono = False
 
-    zero_padding_sig = np.zeros(delay_len_samples)
-    wet_channel = np.concatenate((zero_padding_sig, audio_sig[:, channel]))
-    dry_channel = np.concatenate((audio_sig[:, -(channel - 1)], zero_padding_sig))
+        # if the input was mono, convert it to stereo.
+        if input_sig.ndim == 1:
+            mono = True
+            output_sig = dsp.mono_to_stereo(input_sig)
 
-    # get the location of the wet and dry channels
-    # then put them in a tuple so that they can be stacked
-    location = (dry_channel, wet_channel) if channel else (wet_channel, dry_channel)
-    audio_sig = np.column_stack(location)
+        # if applicable, convert the left-right signal to a mid-side signal.
+        if self.mode == 'MS':
+            if mono: # sides will be silent
+                mids = dsp.stereo_to_mono(output_sig)
+                sides = mids # this is techincally incorrect, but we fix it later.
+                # now stack them and store back into audio_sig
+                output_sig = np.column_stack((mids, sides))
+            else:
+                output_sig = dsp.LR_to_MS(output_sig)
 
-    # convert back to left-right, if we delayed the mid and sides.
-    if mode == 'MS':
-        audio_sig = dsp.MS_to_LR(audio_sig)
-        if mono:
-            # we duplicated the mono channel, here we compensate for it.
-            audio_sig *= 0.5
+        zero_padding_sig = np.zeros(delay_len_samples)
+        wet_channel = np.concatenate((zero_padding_sig, output_sig[:, self.channel]))
+        dry_channel = np.concatenate((output_sig[:, -(self.channel - 1)], zero_padding_sig))
 
-    return audio_sig
+        # get the location of the wet and dry channels
+        # then put them in a tuple so that they can be stacked
+        location = (dry_channel, wet_channel) if self.channel else (wet_channel, dry_channel)
+        output_sig = np.column_stack(location)
+
+        # convert back to left-right, if we delayed the mid and sides.
+        if self.mode == 'MS':
+            output_sig = dsp.MS_to_LR(output_sig)
+            if mono:
+                # we duplicated the mono channel, here we compensate for it.
+                output_sig *= 0.5
+
+        return output_sig
 
 # ----------------------------------------------------------------------------
 #
@@ -226,11 +245,11 @@ class VelvetNoise(Decorrelator):
 
     """
 
-    def __init__(self, density: int = 1000, duration: float = 0.03, segment_scalars: Sequence[float] = None,
+    def __init__(self, duration: float = 0.03, num_impulses: int = 30, segment_scalars: Sequence[float] = None,
                  log_distribution=True, seed: int = None, *args, **kwargs):
         """Impulse density, and filter length defaults are chosen from the velvet noise paper."""
         super().__init__(*args, **kwargs)
-        self.density = density
+        self.num_impulses = num_impulses
         self.duration = duration
         if segment_scalars is None:
             self.segment_scalars = (0.85, 0.55, 0.35, 0.2)
@@ -247,7 +266,7 @@ class VelvetNoise(Decorrelator):
         Dimension 2 (of size 2) could be of Tuples, but for simplicity,
         I use Lists since the rest of the sequence must be generated with Lists.
         '''
-        self._vn_sequences: List[List[List[List[int]]]] = self.generate()
+        self._vn_sequences: List[List[List[List[int]]]] = self._generate()
 
     def convolve(self, input_sig: np.ndarray) -> np.ndarray:
         """Perform the convolution of the velvet noise filters onto each channel of a signal.
@@ -263,7 +282,7 @@ class VelvetNoise(Decorrelator):
         Returns
         -------
         output_sig : np.ndarray
-             the output signal in stereo
+             The stereoized, decorrelated output signal.
 
         """
         sig_len = len(input_sig)
@@ -281,7 +300,7 @@ class VelvetNoise(Decorrelator):
         return output_sig
 
     def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
-        """Perform a velvet noise decorrelation on input_sig with num_outs channels.
+        """Perform a velvet noise decorrelation on input_sig.
 
         As of right now only supports stereo decorrelation (i.e. no quad-channel, 5.1, 7.1, etc. support)
         This method will perform an optimized velvet noise convolution for each channel
@@ -304,13 +323,18 @@ class VelvetNoise(Decorrelator):
         input_sig = dsp.to_float32(input_sig)
         # normalize so that the data ranges from -1 to 1
         dsp.peak_normalize(input_sig)
-        # if the input is mono, then duplicate it to stereo before convolving
+        # if the input is mono, then duplicate it to stereo before processing
         if input_sig.ndim == 1:
             input_sig = dsp.mono_to_stereo(input_sig)
         output_sig = self.convolve(input_sig)
         output_sig = dsp.encode_signal_to_side_channel(input_sig, output_sig)
         output_sig = dsp.apply_stereo_width(output_sig, self.width)
         return output_sig
+
+    @property
+    def density(self) -> float:
+        """The average density in impulses per second."""
+        return self.num_impulses / self.duration
 
     @property
     def FIR(self) -> np.ndarray:
@@ -332,7 +356,11 @@ class VelvetNoise(Decorrelator):
                     fir[k, ci] = self.segment_scalars[si]
         return fir
 
-    def generate(self) -> List[List[List[List[int]]]]:
+    def regenerate(self) -> None:
+        """Regenerate the velvet noise sequences."""
+        self._vn_sequences = self._generate()
+
+    def _generate(self) -> List[List[List[List[int]]]]:
         """Generate a velvet noise finite impulse response filter to convolve with an input signal.
 
         To avoid audible smearing of transients the following are optionally applied:
@@ -353,44 +381,40 @@ class VelvetNoise(Decorrelator):
         sequence_len = int(round(self.fs * self.duration))
         # average spacing between two impulses (grid size)
         grid_size = self.fs / self.density
-        num_impulses = int(sequence_len / grid_size)
+        #num_impulses = int(sequence_len / grid_size)
         # coefficient values for segmented decay can be set manually
         num_segments = len(self.segment_scalars)
         # calculate the grid size between each impulse logarithmically
         # use a function to apply this for each impulse index
-        def log_grid_size(m): return pow(10, m / num_impulses)
+        def log_grid_size(m): return pow(10, m / self.num_impulses)
         # the calculated intervals between impulses
-        intervals = np.array([log_grid_size(m) for m in range(num_impulses)])
+        intervals = np.array([log_grid_size(m) for m in range(self.num_impulses)])
         sum_intervals = np.sum(intervals)
         for ch in range(self.num_outs):
-            r1 = np.random.uniform(low=0, high=1, size=num_impulses)
-            r2 = np.random.uniform(low=0, high=1, size=num_impulses)
+            r1 = np.random.uniform(low=0, high=1, size=self.num_impulses)
+            r2 = np.random.uniform(low=0, high=1, size=self.num_impulses)
             sign = (2 * np.round(r1)) - 1
             segments = [[[], []] for _ in self.segment_scalars]
             fir_index = 0 # location of the impulse in the velvet noise sequence
-            for m in range(num_impulses):
+            for m in range(self.num_impulses):
                 if self.log_distribution:
                     fir_index = int(np.round(r2[m] * (log_grid_size(m) - 1)) \
                         + np.sum(intervals[:m]) * (sequence_len / sum_intervals))
                 else:
                     fir_index = int(np.round(m * grid_size + r2[m] * (grid_size - 1)))
-                segment_index = int(m / (num_impulses / num_segments))
+                segment_index = int(m / (self.num_impulses / num_segments))
                 sign_index = int((sign[m] + 1) / 2)
                 segments[segment_index][sign_index].append(fir_index)
             # filter out unused segments and append to list
             velvet_noise.append(list(filter(None, segments)))
         return velvet_noise
 
-    def regenerate(self) -> None:
-        """Regenerate the velvet noise sequences."""
-        self._vn_sequences = self.generate()
-
 def main():
     """Example usage."""
     import scipy.io.wavfile as wavfile
     fs, sig_float32 = wavfile.read("audio/guitar.wav")
     decorrelators = (
-        VelvetNoise(fs=fs, density=1000, duration=0.03, width=1.0),
+        VelvetNoise(fs=fs, duration=0.03, num_impulses=30, width=1.0),
         HaasEffect(0.0197, fs=fs, channel=1, mode='LR'),
         HaasEffect(0.0096, fs=fs, channel=1, mode='MS'))
     chain = SignalChain(decorrelators, fs, 1, 2)
