@@ -151,7 +151,7 @@ class HaasEffect(Decorrelator):
         # perform the decorrelation
         output_sig = self.haas_delay(input_sig)
         # adjust the width parameter.
-        output_sig = dsp.apply_stereo_width(output_sig)
+        output_sig = dsp.apply_stereo_width(output_sig, self.width)
         return output_sig
 
     def haas_delay(self, input_sig: np.ndarray) -> np.ndarray:
@@ -246,23 +246,24 @@ class VelvetNoise(Decorrelator):
     """
 
     def __init__(self, duration: float = 0.03, num_impulses: int = 30, segment_scalars: Sequence[float] = None,
-                 log_distribution=True, seed: int = None, *args, **kwargs):
+                 use_log_distribution=True, seed: int = None, *args, **kwargs):
         """Impulse density, and filter length defaults are chosen from the velvet noise paper."""
         super().__init__(*args, **kwargs)
         self.num_impulses = num_impulses
         self.duration = duration
+        # coefficient values for segmented decay can be set manually
         if segment_scalars is None:
             self.segment_scalars = (0.85, 0.55, 0.35, 0.2)
         else:
             self.segment_scalars = segment_scalars
-        self.log_distribution = log_distribution
+        self.use_log_distribution = use_log_distribution
         self.seed = seed
         '''
         _vn_sequences is of shape (num_outs, num_segments, 2, num_positive/num_negative)
 
         It maps each channel to a list of equal length segments, determined by segment_scalars.
         Each segment is then split into lists of negative and positive impulses at indices 0 and 1 respectively.
-        Because of the inhomogeneity of the last dimension, this cannot be converted to a numpy array.
+        Because of the heterogeneity of the last dimension, this cannot be converted to a numpy array.
         Dimension 2 (of size 2) could be of Tuples, but for simplicity,
         I use Lists since the rest of the sequence must be generated with Lists.
         '''
@@ -377,19 +378,23 @@ class VelvetNoise(Decorrelator):
         """
         if self.seed is not None:
             np.random.seed(self.seed)
+
         velvet_noise = []
         sequence_len = int(round(self.fs * self.duration))
-        # average spacing between two impulses (grid size)
-        grid_size = self.fs / self.density
-        #num_impulses = int(sequence_len / grid_size)
-        # coefficient values for segmented decay can be set manually
+        grid_size = self.fs / self.density # average spacing between two impulses
         num_segments = len(self.segment_scalars)
-        # calculate the grid size between each impulse logarithmically
-        # use a function to apply this for each impulse index
+
         def log_grid_size(m): return pow(10, m / self.num_impulses)
-        # the calculated intervals between impulses
         intervals = np.array([log_grid_size(m) for m in range(self.num_impulses)])
         sum_intervals = np.sum(intervals)
+
+        def log_distribution(m, r2):
+            return int(np.round(r2[m] * (log_grid_size(m) - 1))
+                       + np.sum(intervals[:m]) * (sequence_len / sum_intervals))
+
+        def uniform_density(m, r2):
+            return int(np.round(m * grid_size + r2[m] * (grid_size - 1)))
+
         for ch in range(self.num_outs):
             r1 = np.random.uniform(low=0, high=1, size=self.num_impulses)
             r2 = np.random.uniform(low=0, high=1, size=self.num_impulses)
@@ -397,11 +402,7 @@ class VelvetNoise(Decorrelator):
             segments = [[[], []] for _ in self.segment_scalars]
             fir_index = 0 # location of the impulse in the velvet noise sequence
             for m in range(self.num_impulses):
-                if self.log_distribution:
-                    fir_index = int(np.round(r2[m] * (log_grid_size(m) - 1)) \
-                        + np.sum(intervals[:m]) * (sequence_len / sum_intervals))
-                else:
-                    fir_index = int(np.round(m * grid_size + r2[m] * (grid_size - 1)))
+                fir_index = log_distribution(m, r2) if self.use_log_distribution else uniform_density(m, r2)
                 segment_index = int(m / (self.num_impulses / num_segments))
                 sign_index = int((sign[m] + 1) / 2)
                 segments[segment_index][sign_index].append(fir_index)
