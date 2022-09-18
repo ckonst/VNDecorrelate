@@ -289,11 +289,11 @@ class VelvetNoise(Decorrelator):
         sig_len = len(input_sig)
         output_sig = np.zeros((sig_len, self.num_outs))
         for ci, channel in enumerate(input_sig.T):
-            for si, segment in enumerate(self._vn_sequences[ci]):
+            for si, (negative_impulses, postive_impulses) in enumerate(self._vn_sequences[ci]):
                 segmented_sig = np.zeros(sig_len)
-                for k in segment[0]:
+                for k in negative_impulses:
                     segmented_sig[:-k if k else sig_len] -= channel[k:]
-                for k in segment[1]:
+                for k in postive_impulses:
                     segmented_sig[:-k if k else sig_len] += channel[k:]
                 segmented_sig *= self.segment_scalars[si]
                 output_sig[:, ci] += segmented_sig
@@ -350,10 +350,10 @@ class VelvetNoise(Decorrelator):
         filter_len = int(self.duration * self.fs)
         fir = np.zeros((filter_len, self.num_outs))
         for ci in range(self.num_outs):
-            for si, segment in enumerate(self._vn_sequences[ci]):
-                for k in segment[0]:
+            for si, (negative_impulses, postive_impulses) in enumerate(self._vn_sequences[ci]):
+                for k in negative_impulses:
                     fir[k, ci] = -self.segment_scalars[si]
-                for k in segment[1]:
+                for k in postive_impulses:
                     fir[k, ci] = self.segment_scalars[si]
         return fir
 

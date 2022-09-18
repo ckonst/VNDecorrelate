@@ -75,9 +75,7 @@ def to_float32(input_sig: np.ndarray) -> np.ndarray:
         The array with dtype=np.float32
 
     """
-    if input_sig.dtype != np.float32:
-        return input_sig.astype(np.float32)
-    return input_sig
+    return input_sig.astype(np.float32) if input_sig.dtype != np.float32 else input_sig
 
 def peak_normalize(input_sig: np.ndarray) -> None:
     """Normalize input_sig in-place to [-1, 1] using the calculated peaks.
@@ -92,9 +90,8 @@ def peak_normalize(input_sig: np.ndarray) -> None:
     None.
 
     """
-    if (max_abs := np.max(np.abs(input_sig))) == 0.0:
-        return
-    input_sig *= 1.0 / max_abs
+    if (max_abs := np.max(np.abs(input_sig))) != 0.0:
+        input_sig *= 1.0 / max_abs
 
 def rms_normalize(input_sig: np.ndarray, output_sig: np.ndarray) -> None:
     """Normalize output_sig in-place to the rms value of input_sig.
@@ -111,9 +108,8 @@ def rms_normalize(input_sig: np.ndarray, output_sig: np.ndarray) -> None:
     None.
 
     """
-    if (rms := np.sqrt(np.mean(np.square(np.sum(output_sig, axis=1))))) == 0.0:
-        return
-    output_sig *= np.sqrt(np.mean(np.square(input_sig))) / rms
+    if (rms := np.sqrt(np.mean(np.square(np.sum(output_sig, axis=1))))) != 0.0:
+        output_sig *= np.sqrt(np.mean(np.square(input_sig))) / rms
 
 def mono_to_stereo(input_sig: np.ndarray) -> np.ndarray:
     """Convert a mono signal of shape (n,) to a stereo signal of shape (n, 2).
