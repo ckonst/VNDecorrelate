@@ -28,7 +28,6 @@ def apply_stereo_width(input_sig: np.ndarray, width: float) -> np.ndarray:
     input_sig = LR_to_MS(input_sig)
     input_sig[:, 0] *= (1.0 - width)
     input_sig[:, 1] *= width
-    input_sig *= 2.0
     return MS_to_LR(input_sig)
 
 def encode_signal_to_side_channel(input_sig: np.ndarray, decorrelated_sig: np.ndarray) -> np.ndarray:
