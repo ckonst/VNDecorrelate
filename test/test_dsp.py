@@ -22,7 +22,7 @@ class DSPTestCase(unittest.TestCase):
         self.assertTrue(np.sum(dsp.LR_to_MS(y2)[:, 0]) != 0.0)
         x3 = np.full((100, 2), 100)
         y3 = dsp.apply_stereo_width(x3, 0.5)
-        self.assertTrue(np.sum(y3) == 100 * 100 * 2)
+        self.assertTrue(np.sum(y3) == 100 * 100)
         x4 = np.full((100, 2), 100)
         y4 = dsp.apply_stereo_width(x4, 0.25)
         self.assertTrue(not np.array_equal(x4, y4))
