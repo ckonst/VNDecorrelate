@@ -19,4 +19,4 @@ wavfile.write('audio/guitar_dec.wav', fs, output_sig)
 
 ## Further Reading
 
-For a detailed explanation of this project visit: https://ckonst.github.io/Python/VNDecorrelate/vnd.html
+For a detailed explanation of this project visit: https://ckonst.github.io/Python/VNDecorrelate/index.html
