@@ -4,7 +4,7 @@ A Velvet-Noise Decorrelator for audio
 ## Example Usage
 
 ```python
-from VNDecorrelate.decorrelation import VelvetNoise
+from VNDecorrelate.decorrelation import SignalChain
 import scipy.io.wavfile as wavfile
 fs, sig_float32 = wavfile.read("audio/guitar.wav")
 chain = (

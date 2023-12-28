@@ -55,7 +55,6 @@ class Decorrelator(ABC):
 #
 # ----------------------------------------------------------------------------
 
-# TODO: deferred instantiation?
 class SignalChain(Decorrelator):
 
     """A simple class for cascading decorrelators.
@@ -111,13 +110,13 @@ class HaasEffect(Decorrelator):
     For stereo audio, this can be easily done on either the left or right channel, or on the mid or side channel for different results.
 
     Attributes:
-        delay_time : float
-            The time in seconds to delay the channel by.
         channel : int
             Which channel gets delayed. For stereo audio:
                 0 is the left channel, 1 is the right channel.
                 OR
                 0 is the mid channel, 1 is the side channel.
+        delay_time : float
+            The time in seconds to delay the channel by.
         mode : str
             Either 'LR' (Left-Right) or 'MS' (Mid-Side).
             If set to MS, then the delay will be applied to the mid or side channel
@@ -134,8 +133,8 @@ class HaasEffect(Decorrelator):
 
         """
         super().__init__(width=width, *args, **kwargs)
-        self.delay_time = delay_time
         self.channel = channel
+        self.delay_time = delay_time
         self.mode = mode
 
     def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
@@ -170,20 +169,6 @@ class HaasEffect(Decorrelator):
         ----------
         input_sig : numpy.ndarray
             The input signal to apply the Haas Effect to.
-        delay_time : float
-            The time in seconds to delay by.
-        fs : int
-            The sample rate.
-        channel : int
-            Which channel gets delayed. For stereo audio:
-                0 is the left channel, 1 is the right channel.
-                OR
-                0 is the mid channel, 1 is the side channel.
-        mode : string, optional
-            Either 'LR' (Left-Right) or 'MS' (Mid-Side).
-            If set to MS, then the delay will be applied to the mid or side channel
-            depending on the channel argument.
-            The default is 'LR'.
 
         Returns
         -------
@@ -234,8 +219,6 @@ class HaasEffect(Decorrelator):
 #
 # ----------------------------------------------------------------------------
 
-# TODO:
-# Implement Multiband decorrelation: higher frequencies -> more decorrelated
 class VelvetNoise(Decorrelator):
 
     """A velvet noise decorrelator for audio.
