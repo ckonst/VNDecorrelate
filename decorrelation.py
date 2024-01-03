@@ -5,10 +5,11 @@ Created on Mon Jun 20 22:18:33 2022
 @author: Christian Konstantinov
 """
 
-import numpy as np
-
 from abc import ABC, abstractmethod
 from typing import List, Sequence
+
+import numpy as np
+
 from utils import dsp
 
 # ----------------------------------------------------------------------------
@@ -16,6 +17,7 @@ from utils import dsp
 # Abstract Decorrelator Class
 #
 # ----------------------------------------------------------------------------
+
 
 class Decorrelator(ABC):
 
@@ -55,6 +57,7 @@ class Decorrelator(ABC):
 #
 # ----------------------------------------------------------------------------
 
+
 class SignalChain(Decorrelator):
 
     """A simple class for cascading decorrelators.
@@ -71,7 +74,8 @@ class SignalChain(Decorrelator):
         self.decorrelators = decorrelators
 
     def velvet_noise(self, *args, **kwargs):
-        self.decorrelators = (*self.decorrelators, VelvetNoise(*args, **kwargs))
+        self.decorrelators = (*self.decorrelators,
+                              VelvetNoise(*args, **kwargs))
         return self
 
     def haas_effect(self, *args, **kwargs):
@@ -102,6 +106,7 @@ class SignalChain(Decorrelator):
 #
 # ----------------------------------------------------------------------------
 
+
 class HaasEffect(Decorrelator):
 
     """A Decorrelator that utilizes the Haas Effect.
@@ -125,14 +130,14 @@ class HaasEffect(Decorrelator):
 
     """
 
-    def __init__(self, delay_time: float = 0.02, channel: int = 0, mode: str = 'LR', width: float = 0.5, *args, **kwargs):
+    def __init__(self, delay_time: float = 0.02, channel: int = 0, mode: str = 'LR', width: float = 0.5, **kwargs):
         """Left-Right and Mid-Side delay values can be chosen to reduce phase incoherence.
 
         In general, keeping these values under 20ms helps reduce audible doubling artifacts,
         which are more noticible in mono.
 
         """
-        super().__init__(width=width, *args, **kwargs)
+        super().__init__(width=width, **kwargs)
         self.channel = channel
         self.delay_time = delay_time
         self.mode = mode
@@ -187,21 +192,25 @@ class HaasEffect(Decorrelator):
 
         # if applicable, convert the left-right signal to a mid-side signal.
         if self.mode == 'MS':
-            if mono: # sides will be silent
+            if mono:  # sides will be silent
                 mids = dsp.stereo_to_mono(output_sig)
-                sides = mids # this is techincally incorrect, but we fix it later.
+                # this is techincally incorrect, but we fix it later.
+                sides = mids
                 # now stack them and store back into audio_sig
                 output_sig = np.column_stack((mids, sides))
             else:
                 output_sig = dsp.LR_to_MS(output_sig)
 
         zero_padding_sig = np.zeros(delay_len_samples)
-        wet_channel = np.concatenate((zero_padding_sig, output_sig[:, self.channel]))
-        dry_channel = np.concatenate((output_sig[:, -(self.channel - 1)], zero_padding_sig))
+        wet_channel = np.concatenate(
+            (zero_padding_sig, output_sig[:, self.channel]))
+        dry_channel = np.concatenate(
+            (output_sig[:, -(self.channel - 1)], zero_padding_sig))
 
         # get the location of the wet and dry channels
         # then put them in a tuple so that they can be stacked
-        location = (dry_channel, wet_channel) if self.channel else (wet_channel, dry_channel)
+        location = (dry_channel, wet_channel) if self.channel else (
+            wet_channel, dry_channel)
         output_sig = np.column_stack(location)
 
         # convert back to left-right, if we delayed the mid and sides.
@@ -218,6 +227,7 @@ class HaasEffect(Decorrelator):
 # Velvet Noise Decorrelator
 #
 # ----------------------------------------------------------------------------
+
 
 class VelvetNoise(Decorrelator):
 
@@ -238,9 +248,9 @@ class VelvetNoise(Decorrelator):
     """
 
     def __init__(self, duration: float = 0.03, num_impulses: int = 30, segment_envelope: Sequence[float] = None,
-                 use_log_distribution=True, seed: int = None, *args, **kwargs):
+                 use_log_distribution=True, seed: int = None, **kwargs):
         """Impulse density, and filter length defaults are chosen from the velvet noise paper."""
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
         self.num_impulses = num_impulses
         self.duration = duration
         # coefficient values for segmented decay can be set manually
@@ -374,11 +384,14 @@ class VelvetNoise(Decorrelator):
 
         velvet_noise = []
         sequence_len = int(round(self.fs * self.duration))
-        grid_size = self.fs / self.density # average spacing between two impulses
+        grid_size = self.fs / self.density  # average spacing between two impulses
         num_segments = len(self.segment_envelope)
 
-        def log_grid_size(m): return pow(10, m / self.num_impulses)
-        intervals = np.array([log_grid_size(m) for m in range(self.num_impulses)])
+        def log_grid_size(m):
+            return pow(10, m / self.num_impulses)
+
+        intervals = np.array([log_grid_size(m)
+                             for m in range(self.num_impulses)])
         sum_intervals = np.sum(intervals)
 
         def log_distribution(m, r2):
@@ -393,9 +406,10 @@ class VelvetNoise(Decorrelator):
             r2 = np.random.uniform(low=0, high=1, size=self.num_impulses)
             sign = (2 * np.round(r1)) - 1
             segments = [[[], []] for _ in self.segment_envelope]
-            fir_index = 0 # location of the impulse in the velvet noise sequence
+            fir_index = 0  # location of the impulse in the velvet noise sequence
             for m in range(self.num_impulses):
-                fir_index = log_distribution(m, r2) if self.use_log_distribution else uniform_density(m, r2)
+                fir_index = log_distribution(
+                    m, r2) if self.use_log_distribution else uniform_density(m, r2)
                 segment_index = int(m / (self.num_impulses / num_segments))
                 sign_index = int((sign[m] + 1) / 2)
                 segments[segment_index][sign_index].append(fir_index)
@@ -403,18 +417,20 @@ class VelvetNoise(Decorrelator):
             velvet_noise.append(list(filter(None, segments)))
         return velvet_noise
 
+
 def main() -> None:
     """Example usage."""
     import scipy.io.wavfile as wavfile
     fs, sig_float32 = wavfile.read("audio/guitar.wav")
     chain = (
         SignalChain(fs=fs, num_ins=1, num_outs=2)
-            .velvet_noise(fs=fs, duration=0.06, num_impulses=60, seed=1, use_log_distribution=False)
-            .haas_effect(0.0197, fs=fs, channel=1, mode='LR')
-            .haas_effect(0.0096, fs=fs, channel=1, mode='MS')
+        .velvet_noise(fs=fs, duration=0.06, num_impulses=60, seed=1, use_log_distribution=False)
+        .haas_effect(0.0197, fs=fs, channel=1, mode='LR')
+        .haas_effect(0.0096, fs=fs, channel=1, mode='MS')
     )
     output_sig = chain(sig_float32)
     wavfile.write('audio/guitar_dec.wav', fs, output_sig)
+
 
 if __name__ == '__main__':
     main()
