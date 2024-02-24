@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jun 20 18:42:27 2022
-
-@author: Christian Konstantinov
-"""
-
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io.wavfile as wavfile

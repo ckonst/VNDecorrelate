@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jun 21 23:13:07 2022
-
-@author: Christian Konstantinov
-"""
-
 import numpy as np
 import unittest
 from utils import dsp

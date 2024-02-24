@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Jun 21 23:01:14 2022
-
-@author: Christian Konstantinov
-"""
-
 import numpy as np
 
 def apply_stereo_width(input_sig: np.ndarray, width: float) -> np.ndarray:

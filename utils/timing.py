@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jun 20 18:45:12 2022
-
-@author: Christian Konstantinov
-"""
-
 from functools import wraps
 from time import time
 

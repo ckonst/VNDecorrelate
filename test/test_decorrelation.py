@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Sun Feb  5 21:15:31 2023
-
-@author: Christian Konstantinov
-"""
-
 import numpy as np
 import unittest
 from decorrelation import SignalChain, VelvetNoise, HaasEffect

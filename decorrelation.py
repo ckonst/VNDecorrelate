@@ -1,10 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Mon Jun 20 22:18:33 2022
-
-@author: Christian Konstantinov
-"""
-
 from abc import ABC, abstractmethod
 from typing import List, Sequence
 
@@ -194,7 +187,7 @@ class HaasEffect(Decorrelator):
         if self.mode == 'MS':
             if mono:  # sides will be silent
                 mids = dsp.stereo_to_mono(output_sig)
-                # this is techincally incorrect, but we fix it later.
+                # this is technically incorrect, but we fix it later.
                 sides = mids
                 # now stack them and store back into audio_sig
                 output_sig = np.column_stack((mids, sides))
@@ -203,14 +196,19 @@ class HaasEffect(Decorrelator):
 
         zero_padding_sig = np.zeros(delay_len_samples)
         wet_channel = np.concatenate(
-            (zero_padding_sig, output_sig[:, self.channel]))
+            (zero_padding_sig, output_sig[:, self.channel])
+        )
         dry_channel = np.concatenate(
-            (output_sig[:, -(self.channel - 1)], zero_padding_sig))
+            (output_sig[:, -(self.channel - 1)], zero_padding_sig)
+        )
 
         # get the location of the wet and dry channels
         # then put them in a tuple so that they can be stacked
-        location = (dry_channel, wet_channel) if self.channel else (
-            wet_channel, dry_channel)
+        location = (
+            (dry_channel, wet_channel)
+            if self.channel
+            else (wet_channel, dry_channel)
+        )
         output_sig = np.column_stack(location)
 
         # convert back to left-right, if we delayed the mid and sides.
