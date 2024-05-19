@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import scipy.io.wavfile as wavfile
 
-from decorrelation import VelvetNoise
+from VNDecorrelate.decorrelation import VelvetNoise
 
 # TODO: Plot Autocorrelogram and Cross Correlogram of Sine-sweep signal
 

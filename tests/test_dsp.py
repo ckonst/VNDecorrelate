@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from utils import dsp
+from VNDecorrelate.utils import dsp
 
 class DSPTestCase(unittest.TestCase):
 

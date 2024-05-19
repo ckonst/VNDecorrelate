@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from decorrelation import SignalChain, VelvetNoise, HaasEffect
+from VNDecorrelate.decorrelation import SignalChain, VelvetNoise, HaasEffect
 
 class DecorrelationTestCase(unittest.TestCase):
 

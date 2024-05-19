@@ -3,7 +3,7 @@ from typing import List, Sequence
 
 import numpy as np
 
-from utils import dsp
+from VNDecorrelate.utils import dsp
 
 # ----------------------------------------------------------------------------
 #
@@ -245,20 +245,17 @@ class VelvetNoise(Decorrelator):
 
     """
 
-    def __init__(self, duration: float = 0.03, num_impulses: int = 30, segment_envelope: Sequence[float] = None,
+    def __init__(self, duration: float = 0.03, num_impulses: int = 30, segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2),
                  use_log_distribution=True, seed: int = None, **kwargs):
         """Impulse density, and filter length defaults are chosen from the velvet noise paper."""
         super().__init__(**kwargs)
         self.num_impulses = num_impulses
         self.duration = duration
         # coefficient values for segmented decay can be set manually
-        if segment_envelope is None:
-            self.segment_envelope = (0.85, 0.55, 0.35, 0.2)
-        else:
-            self.segment_envelope = segment_envelope
+        self.segment_envelope = segment_envelope
         self.use_log_distribution = use_log_distribution
         self.seed = seed
-        '''
+        """
         _vn_sequences is of shape (num_outs, num_segments, 2, num_positive/num_negative)
 
         It maps each channel to a list of equal length segments, determined by segment_envelope.
@@ -266,7 +263,7 @@ class VelvetNoise(Decorrelator):
         Because of the heterogeneity of the last dimension, this cannot be converted to a numpy array.
         Dimension 2 (of size 2) could be of Tuples, but for simplicity,
         We use Lists since the rest of the sequence must be generated with Lists.
-        '''
+        """
         self._vn_sequences: List[List[List[List[int]]]] = self._generate()
 
     def convolve(self, input_sig: np.ndarray) -> np.ndarray:
@@ -292,9 +289,11 @@ class VelvetNoise(Decorrelator):
             for si, (negative_impulses, postive_impulses) in enumerate(self._vn_sequences[ci]):
                 segmented_sig = np.zeros(sig_len)
                 for k in negative_impulses:
-                    segmented_sig[:-k if k else sig_len] -= channel[k:]
+                    k = sig_len if k == 0 else -k # conform to python indexing rules
+                    segmented_sig[:k] -= channel[k:]
                 for k in postive_impulses:
-                    segmented_sig[:-k if k else sig_len] += channel[k:]
+                    k = sig_len if k == 0 else -k # conform to python indexing rules
+                    segmented_sig[:k] += channel[k:]
                 segmented_sig *= self.segment_envelope[si]
                 output_sig[:, ci] += segmented_sig
         return output_sig
@@ -414,21 +413,3 @@ class VelvetNoise(Decorrelator):
             # filter out unused segments and append to list
             velvet_noise.append(list(filter(None, segments)))
         return velvet_noise
-
-
-def main() -> None:
-    """Example usage."""
-    import scipy.io.wavfile as wavfile
-    fs, sig_float32 = wavfile.read("audio/guitar.wav")
-    chain = (
-        SignalChain(fs=fs, num_ins=1, num_outs=2)
-        .velvet_noise(fs=fs, duration=0.06, num_impulses=60, seed=1, use_log_distribution=False)
-        .haas_effect(0.0197, fs=fs, channel=1, mode='LR')
-        .haas_effect(0.0096, fs=fs, channel=1, mode='MS')
-    )
-    output_sig = chain(sig_float32)
-    wavfile.write('audio/guitar_dec.wav', fs, output_sig)
-
-
-if __name__ == '__main__':
-    main()

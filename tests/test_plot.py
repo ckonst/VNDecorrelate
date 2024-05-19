@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from utils import plot
+from VNDecorrelate.utils import plot
 
 class PlotTestCase(unittest.TestCase):
 
