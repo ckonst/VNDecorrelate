@@ -91,6 +91,7 @@ class SignalChain(Decorrelator):
         """
         for decorrelator in self.decorrelators:
             (cascaded_sig := decorrelator(input_sig))
+            input_sig = cascaded_sig
         return cascaded_sig
 
 # ----------------------------------------------------------------------------
@@ -151,13 +152,17 @@ class HaasEffect(Decorrelator):
         """
         # convert to 32 bit floating point, if it isn't already
         input_sig = dsp.to_float32(input_sig)
-        # normalize so that the data ranges from -1 to 1 if it doesn't already
-        dsp.peak_normalize(input_sig)
+
         # perform the decorrelation
         output_sig = self.haas_delay(input_sig)
+
         # adjust the width parameter if present.
         if self.width is not None:
             output_sig = dsp.apply_stereo_width(output_sig, self.width)
+
+        # normalize by rms to match input
+        dsp.rms_normalize(input_sig, output_sig)
+
         return output_sig
 
     def haas_delay(self, input_sig: np.ndarray) -> np.ndarray:
@@ -280,22 +285,23 @@ class VelvetNoise(Decorrelator):
         Returns
         -------
         output_sig : np.ndarray
-             The stereoized, decorrelated output signal.
-
+            The stereoized, decorrelated output signal.
         """
         sig_len = len(input_sig)
+        segment_buffer = np.zeros(sig_len)
         output_sig = np.zeros((sig_len, self.num_outs))
+
         for ci, channel in enumerate(input_sig.T):
             for si, (negative_impulses, postive_impulses) in enumerate(self._vn_sequences[ci]):
-                segmented_sig = np.zeros(sig_len)
+                segment_buffer *= 0
                 for k in negative_impulses:
-                    _k = sig_len if k == 0 else -k # conform to python indexing rules
-                    segmented_sig[:_k] -= channel[k:]
+                    # Map 0 to sig_len to conform to python indexing rules
+                    segment_buffer[:-k or sig_len] -= channel[k:]
                 for k in postive_impulses:
-                    _k = sig_len if k == 0 else -k # conform to python indexing rules
-                    segmented_sig[:_k] += channel[k:]
-                segmented_sig *= self.segment_envelope[si]
-                output_sig[:, ci] += segmented_sig
+                    # Map 0 to sig_len to conform to python indexing rules
+                    segment_buffer[:-k or sig_len] += channel[k:]
+                segment_buffer *= self.segment_envelope[si]
+                output_sig[:, ci] += segment_buffer
         return output_sig
 
     def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
@@ -320,16 +326,20 @@ class VelvetNoise(Decorrelator):
         """
         # convert to 32 bit floating point, if it isn't already
         input_sig = dsp.to_float32(input_sig)
-        # normalize so that the data ranges from -1 to 1
-        dsp.peak_normalize(input_sig)
+
         # if the input is mono, then duplicate it to stereo before processing
         if input_sig.ndim == 1:
             input_sig = dsp.mono_to_stereo(input_sig)
+
         output_sig = self.convolve(input_sig)
-        dsp.rms_normalize(input_sig, output_sig)
+
         output_sig = dsp.encode_signal_to_side_channel(input_sig, output_sig)
         if self.width is not None:
             output_sig = dsp.apply_stereo_width(output_sig, self.width)
+
+        # normalize by rms to match input
+        dsp.rms_normalize(input_sig, output_sig)
+
         return output_sig
 
     @property
@@ -406,6 +416,7 @@ class VelvetNoise(Decorrelator):
                 segment_index = int(m / (self.num_impulses / num_segments))
                 sign_index = int((sign[m] + 1) / 2)
                 segments[segment_index][sign_index].append(fir_index)
+
             # filter out unused segments and append to list
             velvet_noise.append(list(filter(None, segments)))
         return velvet_noise
