@@ -21,17 +21,14 @@ class DecorrelationTestCase(unittest.TestCase):
         vnd = VelvetNoise(seed=1)
         sequences = vnd._generate()
         self.assertTrue(sequences == vnd._vn_sequences)
-        vnd.seed = 2
-        vnd.regenerate()
+        vnd = VelvetNoise(seed=2)
         self.assertFalse(sequences == vnd._vn_sequences)
 
     def test_properties(self):
         fs = 44100
-        vnd = VelvetNoise(duration = 0.03, num_impulses = 30, fs=fs, num_outs=2)
+        vnd = VelvetNoise(duration=0.03, num_impulses=30, fs=fs, num_outs=2)
         self.assertTrue(vnd.density == 1000)
-        vnd.duration = 0.055
-        vnd.num_impulses = 45
-        vnd.regenerate
+        vnd = VelvetNoise(duration=0.055, num_impulses=45)
         self.assertTrue(818.19 > vnd.density > 818.18)
         self.assertTrue(vnd.FIR.shape == (2425, 2))
 

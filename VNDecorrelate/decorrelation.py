@@ -289,11 +289,11 @@ class VelvetNoise(Decorrelator):
             for si, (negative_impulses, postive_impulses) in enumerate(self._vn_sequences[ci]):
                 segmented_sig = np.zeros(sig_len)
                 for k in negative_impulses:
-                    k = sig_len if k == 0 else -k # conform to python indexing rules
-                    segmented_sig[:k] -= channel[k:]
+                    _k = sig_len if k == 0 else -k # conform to python indexing rules
+                    segmented_sig[:_k] -= channel[k:]
                 for k in postive_impulses:
-                    k = sig_len if k == 0 else -k # conform to python indexing rules
-                    segmented_sig[:k] += channel[k:]
+                    _k = sig_len if k == 0 else -k # conform to python indexing rules
+                    segmented_sig[:_k] += channel[k:]
                 segmented_sig *= self.segment_envelope[si]
                 output_sig[:, ci] += segmented_sig
         return output_sig
@@ -356,10 +356,6 @@ class VelvetNoise(Decorrelator):
                 for k in postive_impulses:
                     fir[k, ci] = self.segment_envelope[si]
         return fir
-
-    def regenerate(self) -> None:
-        """Regenerate the velvet noise sequences."""
-        self._vn_sequences = self._generate()
 
     def _generate(self) -> List[List[List[List[int]]]]:
         """Generate a velvet noise finite impulse response filter to convolve with an input signal.
