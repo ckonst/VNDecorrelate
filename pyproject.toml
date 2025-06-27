@@ -1,0 +1,19 @@
+[project]
+name = "vndecorrelate"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12.1"
+dependencies = [
+    "matplotlib>=3.10.3",
+    "numpy>=2.3.1",
+    "scipy>=1.16.0",
+]
+
+[dependency-groups]
+dev = [
+    "matplotlib>=3.10.3",
+    "numpy>=2.3.1",
+    "pytest>=8.4.1",
+    "scipy>=1.16.0",
+]
