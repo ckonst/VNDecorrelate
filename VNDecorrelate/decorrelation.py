@@ -1,7 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import List, Sequence
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import List, Protocol, Sequence
 
 import numpy as np
+from numpy.typing import NDArray
 
 from VNDecorrelate.utils import dsp
 
@@ -12,37 +15,29 @@ from VNDecorrelate.utils import dsp
 # ----------------------------------------------------------------------------
 
 
-class Decorrelator(ABC):
+class SignalProcessor(Protocol):
+    def __call__(self, input_sig: NDArray) -> NDArray:
+        raise NotImplementedError
 
-    """An abstract base class for a Decorrelator.
 
-    Attributes:
-        fs : int
-            The sampling frequency of the signal. Default is 44100.
-        num_ins : int
-            The number of input channels. Default is 2.
-        num_outs : int
-            The number of output channels. Default is 2.
-        width : float
-            Controls the level of the side channel, as a percent of both the Mid-Side channels [0.0, 1.0]. Default is 1.0.
+@dataclass
+class Decorrelator(ABC, SignalProcessor):
+    """An abstract base class for a Decorrelator."""
 
-    """
-
-    def __init__(self, fs: int = 44100, num_ins: int = 2, num_outs: int = 2, width: float = None):
-        """Initialize all common parameters."""
-        self.fs = fs
-        self.num_ins = num_ins
-        self.num_outs = num_outs
-        self.width = width
+    fs: int = 44100  # sampling frequency
+    num_ins: int = 2  # number of input channels
+    num_outs: int = 2  # number of output channels
+    width: float = None  # width of the decorrelation effect
 
     @abstractmethod
-    def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
+    def decorrelate(self, input_sig: NDArray) -> NDArray:
         """Main decorrelation function that must be implemented in subclasses."""
         pass
 
-    def __call__(self, input_sig: np.ndarray) -> np.ndarray:
+    def __call__(self, input_sig: NDArray) -> NDArray:
         """Alternative way of calling decorrelate."""
         return self.decorrelate(input_sig)
+
 
 # ----------------------------------------------------------------------------
 #
@@ -51,41 +46,33 @@ class Decorrelator(ABC):
 # ----------------------------------------------------------------------------
 
 
-class SignalChain(Decorrelator):
+class SignalChain(SignalProcessor):
+    """A simple class for cascading decorrelators."""
 
-    """A simple class for cascading decorrelators.
-
-    Attributes:
-        decorrelators : Sequence[Decorrelator]
-            The sequence containing the Decorrelator objects whose decorrelate methods will be called.
-
-    """
-
-    def __init__(self, decorrelators: Sequence[Decorrelator] = (), /, **kwargs):
+    def __init__(self, *decorrelators: Decorrelator, **kwargs):
         """Initialize the same way any other decorrelator would."""
         super().__init__(**kwargs)
         self.decorrelators = decorrelators
 
     def velvet_noise(self, *args, **kwargs):
-        self.decorrelators = (*self.decorrelators,
-                              VelvetNoise(*args, **kwargs))
+        self.decorrelators = (*self.decorrelators, VelvetNoise(*args, **kwargs))
         return self
 
     def haas_effect(self, *args, **kwargs):
         self.decorrelators = (*self.decorrelators, HaasEffect(*args, **kwargs))
         return self
 
-    def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
+    def __call__(self, input_sig: NDArray) -> NDArray:
         """Decorrelate input_sig with all decorrelators in this SignalChain.
 
         Parameters
         ----------
-        input_sig : np.ndarray
+        input_sig : NDArray
             The original signal.
 
         Returns
         -------
-        cascaded_sig : np.ndarray
+        cascaded_sig : NDArray
             The signal processed by cascading decorrelators.
 
         """
@@ -94,6 +81,7 @@ class SignalChain(Decorrelator):
             input_sig = cascaded_sig
         return cascaded_sig
 
+
 # ----------------------------------------------------------------------------
 #
 # Haas Effect Decorrelator
@@ -101,52 +89,53 @@ class SignalChain(Decorrelator):
 # ----------------------------------------------------------------------------
 
 
-class HaasEffect(Decorrelator):
+class HaasEffectMode(StrEnum):
+    """Either LR (Left-Right) or MS (Mid-Side)"""
 
+    LR = 'LR'
+    MS = 'MS'
+
+
+@dataclass(kw_only=True, slots=True)
+class HaasEffect(Decorrelator):
     """A Decorrelator that utilizes the Haas Effect.
 
     In music, the Haas Effect delays a channel or channels by a small amount to alter the cross correlation between each channel.
     For stereo audio, this can be easily done on either the left or right channel, or on the mid or side channel for different results.
 
-    Attributes:
-        channel : int
+    Left-Right and Mid-Side delay values can be chosen to reduce phase incoherence.
+    In general, keeping these values under 20ms helps reduce audible doubling artifacts, which are more noticible in mono.
+
+    Attributes
+    ----------
+        delayed_channel : int
             Which channel gets delayed. For stereo audio:
                 0 is the left channel, 1 is the right channel.
-                OR
+                OR if mode is MS:
                 0 is the mid channel, 1 is the side channel.
-        delay_time : float
+        delay_time_seconds : float
             The time in seconds to delay the channel by.
-        mode : str
-            Either 'LR' (Left-Right) or 'MS' (Mid-Side).
-            If set to MS, then the delay will be applied to the mid or side channel
-            depending on the channel argument.
-            The default is 'LR'.
+        mode : HaasEffectMode
+            If set to MS, then the input channels will be converted to Mid-Side As though they were Left-Right, even if they're not!
 
     """
 
-    def __init__(self, delay_time: float = 0.02, channel: int = 0, mode: str = 'LR', width: float = 0.5, **kwargs):
-        """Left-Right and Mid-Side delay values can be chosen to reduce phase incoherence.
+    delayed_channel: int = 0
+    delay_time_seconds: float = 0.02
+    mode: HaasEffectMode = HaasEffectMode.LR
+    width: float = 0.5
 
-        In general, keeping these values under 20ms helps reduce audible doubling artifacts,
-        which are more noticible in mono.
-
-        """
-        super().__init__(width=width, **kwargs)
-        self.channel = channel
-        self.delay_time = delay_time
-        self.mode = mode
-
-    def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
+    def decorrelate(self, input_sig: NDArray) -> NDArray:
         """Perform a Haas Effect decorrelation on input_sig.
 
         Parameters
         ----------
-        input_sig : np.ndarray
+        input_sig : NDArray
             The mono or stereo input signal to upmix or decorrelate.
 
         Returns
         -------
-        output_sig : np.ndarray
+        output_sig : NDArray
             The stereoized, decorrelated output signal.
 
         """
@@ -165,22 +154,22 @@ class HaasEffect(Decorrelator):
 
         return output_sig
 
-    def haas_delay(self, input_sig: np.ndarray) -> np.ndarray:
+    def haas_delay(self, input_sig: NDArray) -> NDArray:
         """Return a stereo signal where the specified channel is delayed by delay_time.
 
         Parameters
         ----------
-        input_sig : numpy.ndarray
+        input_sig : NDArray
             The input signal to apply the Haas Effect to.
 
         Returns
         -------
-        output_sig : numpy.ndarray
+        output_sig : NDArray
             The wet signal with one channel delayed.
 
         """
         output_sig = input_sig
-        delay_len_samples = round(self.delay_time * self.fs)
+        delay_len_samples = round(self.delay_time_seconds * self.fs)
         mono = False
 
         # if the input was mono, convert it to stereo.
@@ -189,7 +178,7 @@ class HaasEffect(Decorrelator):
             output_sig = dsp.mono_to_stereo(input_sig)
 
         # if applicable, convert the left-right signal to a mid-side signal.
-        if self.mode == 'MS':
+        if self.mode == HaasEffectMode.MS:
             if mono:  # sides will be silent
                 mids = dsp.stereo_to_mono(output_sig)
                 # this is technically incorrect, but we fix it later.
@@ -201,29 +190,30 @@ class HaasEffect(Decorrelator):
 
         zero_padding_sig = np.zeros(delay_len_samples)
         wet_channel = np.concatenate(
-            (zero_padding_sig, output_sig[:, self.channel])
+            (zero_padding_sig, output_sig[:, self.delayed_channel])
         )
         dry_channel = np.concatenate(
-            (output_sig[:, -(self.channel - 1)], zero_padding_sig)
+            (output_sig[:, -(self.delayed_channel - 1)], zero_padding_sig)
         )
 
         # get the location of the wet and dry channels
         # then put them in a tuple so that they can be stacked
         location = (
             (dry_channel, wet_channel)
-            if self.channel
+            if self.delayed_channel
             else (wet_channel, dry_channel)
         )
         output_sig = np.column_stack(location)
 
         # convert back to left-right, if we delayed the mid and sides.
-        if self.mode == 'MS':
+        if self.mode == HaasEffectMode.MS:
             output_sig = dsp.MS_to_LR(output_sig)
             if mono:
                 # we duplicated the mono channel, here we compensate for it.
                 output_sig *= 0.5
 
         return output_sig
+
 
 # ----------------------------------------------------------------------------
 #
@@ -232,17 +222,18 @@ class HaasEffect(Decorrelator):
 # ----------------------------------------------------------------------------
 
 
+@dataclass(kw_only=True)
 class VelvetNoise(Decorrelator):
-
     """A velvet noise decorrelator for audio.
 
     See method docstrings for more details.
 
-    Attributes:
-        density : int
-            Impulse density in impulses per second. Default is 1000.
+    Attributes
+    ----------
         duration : float
-            The duration of the velvet noise sequence in seconds. Default is 0.03.
+            The duration of the velvet noise sequence in seconds.
+        num_impulses : int
+            The total number of impulses in the velvet noise sequence.
         segment_envelope : Sequence[float]
             The sequence of coefficients for segmented decay, one for each segment.
         seed : int
@@ -250,16 +241,15 @@ class VelvetNoise(Decorrelator):
 
     """
 
-    def __init__(self, duration: float = 0.03, num_impulses: int = 30, segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2),
-                 use_log_distribution=True, seed: int = None, **kwargs):
-        """Impulse density, and filter length defaults are chosen from the velvet noise paper."""
-        super().__init__(**kwargs)
-        self.num_impulses = num_impulses
-        self.duration = duration
-        # coefficient values for segmented decay can be set manually
-        self.segment_envelope = segment_envelope
-        self.use_log_distribution = use_log_distribution
-        self.seed = seed
+    duration: float = 0.03
+    num_impulses: int = 30
+    segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2)
+    use_log_distribution: bool = True
+    seed: int = None
+
+    def __post_init__(self):
+        """"""
+
         """
         _vn_sequences is of shape (num_outs, num_segments, 2, num_positive/num_negative)
 
@@ -271,20 +261,19 @@ class VelvetNoise(Decorrelator):
         """
         self._vn_sequences: List[List[List[List[int]]]] = self._generate()
 
-    def convolve(self, input_sig: np.ndarray) -> np.ndarray:
+    def convolve(self, input_sig: NDArray) -> NDArray:
         """Perform the convolution of the velvet noise filters onto each channel of a signal.
 
-        We take advantage of the sparse nature of the sequence
-        to perform a latency-free convolution.
+        We take advantage of the sparse nature of the sequence to perform a latency-free convolution.
 
         Parameters
         ----------
-        input_sig : np.ndarray
+        input_sig : NDArray
             The input signal to convolve with the generated filter.
 
         Returns
         -------
-        output_sig : np.ndarray
+        output_sig : NDArray
             The stereoized, decorrelated output signal.
         """
         sig_len = len(input_sig)
@@ -292,35 +281,36 @@ class VelvetNoise(Decorrelator):
         output_sig = np.zeros((sig_len, self.num_outs))
 
         for ci, channel in enumerate(input_sig.T):
-            for si, (negative_impulses, postive_impulses) in enumerate(self._vn_sequences[ci]):
+            for si, (negative_impulses, postive_impulses) in enumerate(
+                self._vn_sequences[ci]
+            ):
                 segment_buffer *= 0
                 for k in negative_impulses:
                     # Map 0 to sig_len to conform to python indexing rules
-                    segment_buffer[:-k or sig_len] -= channel[k:]
+                    segment_buffer[: -k or sig_len] -= channel[k:]
                 for k in postive_impulses:
                     # Map 0 to sig_len to conform to python indexing rules
-                    segment_buffer[:-k or sig_len] += channel[k:]
+                    segment_buffer[: -k or sig_len] += channel[k:]
                 segment_buffer *= self.segment_envelope[si]
                 output_sig[:, ci] += segment_buffer
         return output_sig
 
-    def decorrelate(self, input_sig: np.ndarray) -> np.ndarray:
+    def decorrelate(self, input_sig: NDArray) -> NDArray:
         """Perform a velvet noise decorrelation on input_sig.
 
         As of right now only supports stereo decorrelation (i.e. no quad-channel, 5.1, 7.1, etc. support)
-        This method will perform an optimized velvet noise convolution for each channel
-        to generate the side channel content.
+        This method will perform an optimized velvet noise convolution for each channel to generate the side channel content.
         Then it will interpolate between the mid (dry) and side (wet) channels at self.width.
-        Lastly, this method will apply a delay to the mid and left channels, and return the result.
+        Lastly, the output signal is normalized by the RMS of the input signal.
 
         Parameters
         ----------
-        input_sig : np.ndarray
+        input_sig : NDArray
             The mono or stereo input signal to upmix or decorrelate.
 
         Returns
         -------
-        output_sig : np.ndarray
+        output_sig : NDArray
             The stereoized, decorrelated output signal.
 
         """
@@ -348,19 +338,21 @@ class VelvetNoise(Decorrelator):
         return self.num_impulses / self.duration
 
     @property
-    def FIR(self) -> np.ndarray:
+    def FIR(self) -> NDArray:
         """Return the finite impulse response as a numpy array.
 
         Returns
         -------
-        fir : np.ndarray
+        fir : NDArray
             The finite impulse response of the filters as a numpy array of shape (filter_len, num_outs).
 
         """
         filter_len = int(self.duration * self.fs)
         fir = np.zeros((filter_len, self.num_outs))
         for ci in range(self.num_outs):
-            for si, (negative_impulses, postive_impulses) in enumerate(self._vn_sequences[ci]):
+            for si, (negative_impulses, postive_impulses) in enumerate(
+                self._vn_sequences[ci]
+            ):
                 for k in negative_impulses:
                     fir[k, ci] = -self.segment_envelope[si]
                 for k in postive_impulses:
@@ -393,13 +385,14 @@ class VelvetNoise(Decorrelator):
         def log_grid_size(m):
             return pow(10, m / self.num_impulses)
 
-        intervals = np.array([log_grid_size(m)
-                             for m in range(self.num_impulses)])
+        intervals = np.array([log_grid_size(m) for m in range(self.num_impulses)])
         sum_intervals = np.sum(intervals)
 
         def log_distribution(m, r2):
-            return int(np.round(r2[m] * (log_grid_size(m) - 1))
-                       + np.sum(intervals[:m]) * (sequence_len / sum_intervals))
+            return int(
+                np.round(r2[m] * (log_grid_size(m) - 1))
+                + np.sum(intervals[:m]) * (sequence_len / sum_intervals)
+            )
 
         def uniform_density(m, r2):
             return int(np.round(m * grid_size + r2[m] * (grid_size - 1)))
@@ -411,8 +404,11 @@ class VelvetNoise(Decorrelator):
             segments = [[[], []] for _ in self.segment_envelope]
             fir_index = 0  # location of the impulse in the velvet noise sequence
             for m in range(self.num_impulses):
-                fir_index = log_distribution(
-                    m, r2) if self.use_log_distribution else uniform_density(m, r2)
+                fir_index = (
+                    log_distribution(m, r2)
+                    if self.use_log_distribution
+                    else uniform_density(m, r2)
+                )
                 segment_index = int(m / (self.num_impulses / num_segments))
                 sign_index = int((sign[m] + 1) / 2)
                 segments[segment_index][sign_index].append(fir_index)

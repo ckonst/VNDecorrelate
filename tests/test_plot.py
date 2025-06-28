@@ -1,6 +1,9 @@
-import numpy as np
 import unittest
+
+import numpy as np
+
 from VNDecorrelate.utils import plot
+
 
 class PlotTestCase(unittest.TestCase):
 
@@ -18,5 +21,5 @@ class PlotTestCase(unittest.TestCase):
         plot.plot_signal(x)
         self.assertTrue(True)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
