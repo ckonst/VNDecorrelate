@@ -1,17 +1,34 @@
-import numpy as np
 import unittest
-from VNDecorrelate.decorrelation import SignalChain, VelvetNoise, HaasEffect
+
+import numpy as np
+
+from VNDecorrelate.decorrelation import HaasEffect, SignalChain, VelvetNoise
+
 
 class DecorrelationTestCase(unittest.TestCase):
-
     def test_signal_chain(self):
         fs = 44100
         input_sig = np.zeros(1000)
         chain = (
-            SignalChain(fs=fs, num_ins=1, num_outs=2)
-                .velvet_noise(fs=fs, duration=0.03, num_impulses=30, width=1.0)
-                .haas_effect(0.0197, fs=fs, channel=1, mode='LR')
-                .haas_effect(0.0096, fs=fs, channel=1, mode='MS')
+            SignalChain()
+            .velvet_noise(
+                fs=fs,
+                duration=0.03,
+                num_impulses=30,
+                width=1.0,
+            )
+            .haas_effect(
+                delay_time_seconds=0.0197,
+                fs=fs,
+                delayed_channel=1,
+                mode='LR',
+            )
+            .haas_effect(
+                delay_time_seconds=0.0096,
+                fs=fs,
+                delayed_channel=1,
+                mode='MS',
+            )
         )
         output_sig = chain(input_sig)
         self.assertTrue(output_sig.shape[0] > 1000)

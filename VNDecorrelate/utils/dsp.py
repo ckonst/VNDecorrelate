@@ -1,29 +1,34 @@
 import numpy as np
+from numpy.typing import NDArray
 
-def apply_stereo_width(input_sig: np.ndarray, width: float) -> np.ndarray:
+
+def apply_stereo_width(input_sig: NDArray, width: float) -> NDArray:
     """Return input_sig with the Mid-Side balance interpolated at width.
 
     input_sig MUST be a Left-Right stereo signal of shape (n, 2).
 
     Parameters
     ----------
-    input_sig : np.ndarray
+    input_sig : NDArray
         The original signal.
     width : float
         The percentage to scale the side channel by [0.0, 1.0].
 
     Returns
     -------
-    np.ndarray
+    NDArray
         The width-adjusted signal.
 
     """
     input_sig = LR_to_MS(input_sig)
-    input_sig[:, 0] *= (1.0 - width)
+    input_sig[:, 0] *= 1.0 - width
     input_sig[:, 1] *= width
     return MS_to_LR(input_sig)
 
-def encode_signal_to_side_channel(input_sig: np.ndarray, decorrelated_sig: np.ndarray) -> np.ndarray:
+
+def encode_signal_to_side_channel(
+    input_sig: NDArray, decorrelated_sig: NDArray
+) -> NDArray:
     """Encodes decorrelated_sig to be the side channel of input_sig.
 
     input_sig and decorrelated_sig MUST be a Left-Right stereo signal of shape (n, 2).
@@ -32,14 +37,14 @@ def encode_signal_to_side_channel(input_sig: np.ndarray, decorrelated_sig: np.nd
 
     Parameters
     ----------
-    input_sig : np.ndarray
+    input_sig : NDArray
         The original signal.
-    decorrelated_sig : np.ndarray
+    decorrelated_sig : NDArray
         The output signal.
 
     Returns
     -------
-    np.ndarray
+    NDArray
         The newly-encoded signal.
 
     """
@@ -53,91 +58,37 @@ def encode_signal_to_side_channel(input_sig: np.ndarray, decorrelated_sig: np.nd
     S = Ld - Rd
     return np.column_stack(((M + S) / 2, ((M - S) / 2)))
 
-def to_float32(input_sig: np.ndarray) -> np.ndarray:
-    """Return input_sig as an array of 32 bit floats.
 
-    Parameters
-    ----------
-    input_sig : np.ndarray
-        The original signal.
-
-    Returns
-    -------
-    np.ndarray
-        The array with dtype=np.float32
-
-    """
+def to_float32(input_sig: NDArray) -> NDArray[np.float32]:
+    """Return input_sig as an array of 32 bit floats."""
     return input_sig.astype(np.float32) if input_sig.dtype != np.float32 else input_sig
 
-def peak_normalize(input_sig: np.ndarray) -> None:
-    """Normalize input_sig in-place to [-1, 1] using the calculated peaks.
 
-    Parameters
-    ----------
-    input_sig : np.ndarray
-        The original signal.
-
-    Returns
-    -------
-    None.
-
-    """
+def peak_normalize(input_sig: NDArray) -> None:
+    """Normalize input_sig in-place to [-1, 1] using the calculated peaks."""
     if (max_abs := np.max(np.abs(input_sig))) != 0.0:
         input_sig *= 1.0 / max_abs
 
-def rms_normalize(input_sig: np.ndarray, output_sig: np.ndarray) -> None:
-    """Normalize output_sig in-place to the rms value of input_sig.
 
-    Parameters
-    ----------
-    input_sig : numpy.ndarray
-        The original signal.
-    output_sig : numpy.ndarray
-        The signal to normalize.
-
-    Returns
-    -------
-    None.
-
-    """
+def rms_normalize(input_sig: NDArray, output_sig: NDArray) -> None:
+    """Normalize output_sig in-place to the rms value of input_sig."""
     if (rms := np.sqrt(np.mean(np.square(np.sum(output_sig, axis=1))))) != 0.0:
         output_sig *= np.sqrt(np.mean(np.square(input_sig))) / rms
 
-def mono_to_stereo(input_sig: np.ndarray) -> np.ndarray:
-    """Convert a mono signal of shape (n,) to a stereo signal of shape (n, 2).
 
-    Parameters
-    ----------
-    input_sig : np.ndarray
-        The input signal.
-
-    Returns
-    -------
-    np.ndarray
-        The output stereo signal.
-
-    """
+def mono_to_stereo(input_sig: NDArray) -> NDArray:
+    """Convert a mono signal of shape (n,) to a stereo signal of shape (n, 2)."""
     check_mono(input_sig)
     return np.column_stack((input_sig, input_sig))
 
-def stereo_to_mono(input_sig: np.ndarray) -> np.ndarray:
-    """Convert a stereo signal of shape (n, 2) to a mono signal of shape (n,).
 
-    Parameters
-    ----------
-    input_sig : np.ndarray
-        The original stereo signal.
-
-    Returns
-    -------
-    np.ndarray
-        The output mono signal.
-
-    """
+def stereo_to_mono(input_sig: NDArray) -> NDArray:
+    """Convert a stereo signal of shape (n, 2) to a mono signal of shape (n,)."""
     check_stereo(input_sig)
     return (input_sig[:, 0] + input_sig[:, 1]) * 0.5
 
-def LR_to_MS(input_sig: np.ndarray) -> np.ndarray:
+
+def LR_to_MS(input_sig: NDArray) -> NDArray:
     """Given a Left-Right stereo signal, return its Mid-Side equivalent.
 
     Converts LR to MS with the formula:
@@ -148,12 +99,12 @@ def LR_to_MS(input_sig: np.ndarray) -> np.ndarray:
 
     Parameters
     ----------
-    input_sig : np.ndarray
+    input_sig : NDArray
         The original LR stereo signal.
 
     Returns
     -------
-    np.ndarray
+    NDArray
         The output stereo signal in Mid-Side domain.
 
     """
@@ -162,7 +113,8 @@ def LR_to_MS(input_sig: np.ndarray) -> np.ndarray:
     S = (input_sig[:, 0] - input_sig[:, 1]) * 0.5
     return np.column_stack((M, S))
 
-def MS_to_LR(input_sig: np.ndarray) -> np.ndarray:
+
+def MS_to_LR(input_sig: NDArray) -> NDArray:
     """Given a Mid-Side stereo signal return its Left-Right equivalent.
 
     Converts MS to LR with the formula:
@@ -173,12 +125,12 @@ def MS_to_LR(input_sig: np.ndarray) -> np.ndarray:
 
     Parameters
     ----------
-    input_sig : np.ndarray
+    input_sig : NDArray
         The original MS stereo signal.
 
     Returns
     -------
-    np.ndarray
+    NDArray
         The output stereo signal in Left-Right domain.
 
     """
@@ -187,12 +139,18 @@ def MS_to_LR(input_sig: np.ndarray) -> np.ndarray:
     R = input_sig[:, 0] - input_sig[:, 1]
     return np.column_stack((L, R))
 
-def check_mono(input_sig: np.ndarray) -> None:
+
+def check_mono(input_sig: NDArray) -> None:
     """If the input signal is not a mono signal, raise an error."""
     if input_sig.ndim != 1:
-        raise ValueError(f'Input shape invalid: Expected shape (num samples,), but got shape {input_sig.shape}.')
+        raise ValueError(
+            f'Input shape invalid: Expected shape (num samples,), but got shape {input_sig.shape}.'
+        )
 
-def check_stereo(input_sig: np.ndarray) -> None:
+
+def check_stereo(input_sig: NDArray) -> None:
     """If the input signal is not a stereo signal, raise an error."""
     if input_sig.ndim != 2 or input_sig.shape[1] != 2:
-        raise ValueError(f'Input shape invalid: Expected shape (num samples, 2), but got shape {input_sig.shape}.')
+        raise ValueError(
+            f'Input shape invalid: Expected shape (num samples, 2), but got shape {input_sig.shape}.'
+        )
