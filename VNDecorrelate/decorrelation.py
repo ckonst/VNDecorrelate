@@ -7,10 +7,11 @@ import numpy as np
 from numpy.typing import NDArray
 
 from VNDecorrelate.utils import dsp
+from VNDecorrelate.utils.dsp import log_distribution, log_grid_size, uniform_density
 
 # ----------------------------------------------------------------------------
 #
-# Abstract Decorrelator Class
+# Abstract Classes and Protocols
 #
 # ----------------------------------------------------------------------------
 
@@ -379,38 +380,42 @@ class VelvetNoise(Decorrelator):
 
         velvet_noise = []
         sequence_len = int(round(self.fs * self.duration))
-        grid_size = self.fs / self.density  # average spacing between two impulses
+        grid_size = (
+            self.fs / self.density
+        )  # average spacing between two impulses (samples per impulse)
         num_segments = len(self.segment_envelope)
 
-        def log_grid_size(m):
-            return pow(10, m / self.num_impulses)
-
-        intervals = np.array([log_grid_size(m) for m in range(self.num_impulses)])
+        intervals = np.array(
+            [
+                log_grid_size(impulse_index, self.num_impulses)
+                for impulse_index in range(self.num_impulses)
+            ]
+        )
         sum_intervals = np.sum(intervals)
 
-        def log_distribution(m, r2):
-            return int(
-                np.round(r2[m] * (log_grid_size(m) - 1))
-                + np.sum(intervals[:m]) * (sequence_len / sum_intervals)
-            )
-
-        def uniform_density(m, r2):
-            return int(np.round(m * grid_size + r2[m] * (grid_size - 1)))
-
-        for ch in range(self.num_outs):
-            r1 = np.random.uniform(low=0, high=1, size=self.num_impulses)
-            r2 = np.random.uniform(low=0, high=1, size=self.num_impulses)
-            sign = (2 * np.round(r1)) - 1
+        for ci in range(self.num_outs):
+            # RNG for impulse sign
+            sign_gen = np.random.uniform(low=0, high=1, size=self.num_impulses)
+            # RNG for impulse offset
+            offset_gen = np.random.uniform(low=0, high=1, size=self.num_impulses)
+            sign = (2 * np.round(sign_gen)) - 1
             segments = [[[], []] for _ in self.segment_envelope]
             fir_index = 0  # location of the impulse in the velvet noise sequence
-            for m in range(self.num_impulses):
+            for impulse_index in range(self.num_impulses):
                 fir_index = (
-                    log_distribution(m, r2)
+                    log_distribution(
+                        impulse_index,
+                        offset_gen[impulse_index],
+                        intervals,
+                        sum_intervals,
+                        sequence_len,
+                        self.num_impulses,
+                    )
                     if self.use_log_distribution
-                    else uniform_density(m, r2)
+                    else uniform_density(impulse_index, offset_gen, grid_size)
                 )
-                segment_index = int(m / (self.num_impulses / num_segments))
-                sign_index = int((sign[m] + 1) / 2)
+                segment_index = int(impulse_index / (self.num_impulses / num_segments))
+                sign_index = int((sign[impulse_index] + 1) / 2)
                 segments[segment_index][sign_index].append(fir_index)
 
             # filter out unused segments and append to list

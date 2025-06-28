@@ -140,6 +140,36 @@ def MS_to_LR(input_sig: NDArray) -> NDArray:
     return np.column_stack((L, R))
 
 
+def log_grid_size(impulse_index: int, num_impulses: int) -> float:
+    """Given an impulse index and a total number of impulses,
+    return the samples per impulse when distributing logarithmically towards the start of the sequence."""
+    return pow(10, impulse_index / num_impulses)
+
+
+def log_distribution(
+    impulse_index: int,
+    random: np.float64,
+    intervals: NDArray,
+    sum_intervals: float,
+    sequence_len: int,
+    num_impulses: int,
+) -> int:
+    """Return the randomized position of the impulse in the FIR, distributing logarithmically towards the start of the filter."""
+    return int(
+        np.round(random * (log_grid_size(impulse_index, num_impulses) - 1))
+        + np.sum(intervals[:impulse_index]) * (sequence_len / sum_intervals)
+    )
+
+
+def uniform_density(impulse_index: int, random_array: NDArray, grid_size: float) -> int:
+    """Return the randomized position of the impulse in the FIR, preserving a uniform density across the filter."""
+    return int(
+        np.round(
+            impulse_index * grid_size + random_array[impulse_index] * (grid_size - 1)
+        )
+    )
+
+
 def check_mono(input_sig: NDArray) -> None:
     """If the input signal is not a mono signal, raise an error."""
     if input_sig.ndim != 1:
