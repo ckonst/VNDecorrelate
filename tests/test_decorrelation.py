@@ -1,11 +1,11 @@
-import unittest
+from unittest import TestCase
 
 import numpy as np
 
 from VNDecorrelate.decorrelation import HaasEffect, SignalChain, VelvetNoise
 
 
-class DecorrelationTestCase(unittest.TestCase):
+class DecorrelationTestCase(TestCase):
     def test_signal_chain(self):
         fs = 44100
         input_sig = np.zeros(1000)
