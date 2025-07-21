@@ -86,29 +86,26 @@ class SignalChain(SignalProcessor):
         kwargs = self._validate(cls, **kwargs)
         match self._decorrelators:
             case []:
-                self._decorrelators = [
+                self._decorrelators.append(
                     lambda _: cls(
                         sample_rate_hz=self.sample_rate_hz,
                         num_ins=self.num_ins,
                         num_outs=self.num_outs,
                         **kwargs,
                     ),
-                ]
+                )
             case [*_, _]:
-                self._decorrelators = [
-                    *self._decorrelators,
+                self._decorrelators.append(
                     lambda i: cls(
                         sample_rate_hz=self.sample_rate_hz,
                         num_ins=self._decorrelators[i].num_outs,
                         num_outs=kwargs.get('num_outs', self.num_outs),
                         **kwargs,
                     ),
-                ]
+                )
         if self._hot:
-            self._decorrelators = [
-                *self._decorrelators[:-1],
-                self._decorrelators[-1](),
-            ]  # Construct the decorrelator immediately if we're hot loading.
+            # Construct the decorrelator immediately if we're hot loading.
+            self._decorrelators[-1] = self._decorrelators[-1]()
 
     def _validate(
         self, cls, *, sample_rate_hz: int | None = None, **kwargs
@@ -240,12 +237,12 @@ class HaasEffect(Decorrelator):
 # ----------------------------------------------------------------------------
 
 
-@dataclass
+@dataclass(kw_only=True, slots=True)
 class _VelvetNoiseSegment:
     """Dataclass for storing indexes to nonzero samples of Velvet Noise."""
 
-    negative_impulse_indexes: Sequence[int] = ()
-    positive_impulse_indexes: Sequence[int] = ()
+    negative_impulse_indexes: Sequence[int]
+    positive_impulse_indexes: Sequence[int]
 
     def __iter__(self) -> Iterator[tuple[Sequence[int], str]]:
         """Return an iterator containing a pair of the positive/negative impulse indexes, and the method name to use for the optimized convolution."""
@@ -273,7 +270,7 @@ class _VelvetNoiseSegment:
         raise ValueError('Invalid key')
 
 
-@dataclass
+@dataclass(kw_only=True, slots=True)
 class _VelvetNoiseSequence:
     """Dataclass for storing Segments of Velvet Noise for each output channel."""
 
@@ -286,7 +283,7 @@ class _VelvetNoiseSequence:
         return self.output_channels[key]
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, slots=True)
 class VelvetNoise(Decorrelator):
     """A velvet noise decorrelator for audio.
 
@@ -351,10 +348,8 @@ class VelvetNoise(Decorrelator):
         Lastly, the output signal is normalized by the RMS of the input signal.
 
         """
-        # convert to 32 bit floating point, if it isn't already
         input_sig = dsp.to_float32(input_sig)
 
-        # if the input is mono, then duplicate it to stereo before processing
         if input_sig.ndim == 1:
             input_sig = dsp.mono_to_stereo(input_sig)
 
@@ -364,7 +359,6 @@ class VelvetNoise(Decorrelator):
         if self.width is not None:
             output_sig = dsp.apply_stereo_width(output_sig, self.width)
 
-        # normalize by rms to match input
         dsp.rms_normalize(input_sig, output_sig)
 
         return output_sig
@@ -409,7 +403,7 @@ class VelvetNoise(Decorrelator):
         if self.seed is not None:
             np.random.seed(self.seed)
 
-        velvet_noise = _VelvetNoiseSequence(output_channels=())
+        velvet_noise = _VelvetNoiseSequence(output_channels=[])
         sequence_len = int(round(self.sample_rate_hz * self.duration))
         grid_size = (
             self.sample_rate_hz / self.density
@@ -430,7 +424,13 @@ class VelvetNoise(Decorrelator):
                 low=0, high=1, size=self.num_impulses
             )
             sign = (2 * np.round(impulse_sign_rng)) - 1
-            segments = tuple(_VelvetNoiseSegment() for _ in self.segment_envelope)
+            segments = [
+                _VelvetNoiseSegment(
+                    negative_impulse_indexes=[],
+                    positive_impulse_indexes=[],
+                )
+                for _ in self.segment_envelope
+            ]
             fir_index = 0  # location of the impulse in the velvet noise sequence
             for impulse_index in range(self.num_impulses):
                 fir_index = (
@@ -447,16 +447,11 @@ class VelvetNoise(Decorrelator):
                 )
                 segment_index = int(impulse_index / (self.num_impulses / num_segments))
                 sign_index = int((sign[impulse_index] + 1) / 2)
-                segments[segment_index][sign_index] = (
-                    *segments[segment_index][sign_index],
-                    fir_index,
-                )
+                segments[segment_index][sign_index].append(fir_index)
 
             # filter out unused segments and append to list
-            velvet_noise.output_channels = (
-                *velvet_noise.output_channels,
-                tuple(filter(None, segments)),
-            )
+            velvet_noise.output_channels.append(list(filter(None, segments)))
+
         return velvet_noise
 
 
