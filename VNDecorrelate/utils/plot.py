@@ -14,6 +14,7 @@ def plot_signal(input_sig: NDArray, title: str = 'Signal') -> None:
     plt.xlabel('Samples')
     plt.ylabel('Amplitude')
     plt.title(title)
+    plt.savefig(f'./tests/{title}.png')
 
 
 def main():
