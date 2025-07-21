@@ -23,7 +23,7 @@ def main():
 
     sample_rate, sig_float32 = wavfile.read('audio/guitar.wav')
     vnd = VelvetNoise(
-        fs=sample_rate,
+        sample_rate_hz=sample_rate,
         duration=VNS_DURATION,
         num_impulses=M,
         num_outs=2,

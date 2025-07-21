@@ -8,9 +8,8 @@ from VNDecorrelate.decorrelation import SignalChain
 import scipy.io.wavfile as wavfile
 fs, sig_float32 = wavfile.read("audio/guitar.wav")
     chain = (
-        SignalChain()
+        SignalChain(sample_rate_hz=fs)
         .velvet_noise(
-            fs=fs,
             duration=0.03,
             num_impulses=30,
             seed=1,
@@ -18,12 +17,11 @@ fs, sig_float32 = wavfile.read("audio/guitar.wav")
         )
         .haas_effect(
             delay_time_seconds=0.02,
-            fs=fs,
             delayed_channel=1,
             mode='LR',
         )
     )
-output_sig = chain.decorrelate(sig_float32)
+output_sig = chain(sig_float32)
 wavfile.write('audio/guitar_dec.wav', fs, output_sig)
 ```
 

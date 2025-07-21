@@ -10,22 +10,19 @@ class DecorrelationTestCase(TestCase):
         fs = 44100
         input_sig = np.zeros(1000)
         chain = (
-            SignalChain()
+            SignalChain(sample_rate_hz=fs)
             .velvet_noise(
-                fs=fs,
                 duration=0.03,
                 num_impulses=30,
                 width=1.0,
             )
             .haas_effect(
                 delay_time_seconds=0.0197,
-                fs=fs,
                 delayed_channel=1,
                 mode='LR',
             )
             .haas_effect(
                 delay_time_seconds=0.0096,
-                fs=fs,
                 delayed_channel=1,
                 mode='MS',
             )
@@ -43,7 +40,7 @@ class DecorrelationTestCase(TestCase):
 
     def test_properties(self):
         fs = 44100
-        vnd = VelvetNoise(duration=0.03, num_impulses=30, fs=fs, num_outs=2)
+        vnd = VelvetNoise(duration=0.03, num_impulses=30, sample_rate_hz=fs, num_outs=2)
         self.assertTrue(vnd.density == 1000)
         vnd = VelvetNoise(duration=0.055, num_impulses=45)
         self.assertTrue(818.19 > vnd.density > 818.18)

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import List, Protocol, Sequence
+from typing import Any, Callable, List, Protocol, Self, Sequence
 
 import numpy as np
 from numpy.typing import NDArray
@@ -25,10 +25,10 @@ class SignalProcessor(Protocol):
 class Decorrelator(ABC, SignalProcessor):
     """An abstract base class for a Decorrelator."""
 
-    fs: int = 44100  # sampling frequency
-    num_ins: int = 2  # number of input channels
-    num_outs: int = 2  # number of output channels
-    width: float = None  # width of the decorrelation effect
+    sample_rate_hz: int = 44100
+    num_ins: int = 2
+    num_outs: int = 2
+    width: float | None = None
 
     @abstractmethod
     def decorrelate(self, input_sig: NDArray) -> NDArray:
@@ -46,41 +46,93 @@ class Decorrelator(ABC, SignalProcessor):
 #
 # ----------------------------------------------------------------------------
 
+_LazyDecorrelator = Callable[[], Decorrelator] | Decorrelator
 
+
+@dataclass(kw_only=True, slots=True)
 class SignalChain(SignalProcessor):
     """A simple class for cascading decorrelators."""
 
-    def __init__(self, *decorrelators: Decorrelator, **kwargs):
-        """Initialize the same way any other decorrelator would."""
-        super().__init__(**kwargs)
-        self.decorrelators = decorrelators
+    sample_rate_hz: int
+    num_ins: int = 2
+    num_outs: int = 2
+    lazy: bool = True  # If True, wait until the first __call__ to initialize the decorrelators, unless _hot is True
 
-    def velvet_noise(self, *args, **kwargs):
-        self.decorrelators = (*self.decorrelators, VelvetNoise(*args, **kwargs))
+    _hot: bool = False  # If True, bypass lazy loading for every subsequent call to _add_decorrelator
+    _decorrelators: list[_LazyDecorrelator] | None = None
+
+    def __post_init__(self) -> None:
+        if self._decorrelators is not None:
+            raise TypeError(
+                'Cannot supply decorrelators directly, use velvet_noise or haas_effect.'
+            )
+        self._decorrelators = []
+
+        if not self.lazy:
+            self._hot = True
+
+    def velvet_noise(self, **kwargs) -> Self:
+        self._add_decorrelator(VelvetNoise, **kwargs)
         return self
 
-    def haas_effect(self, *args, **kwargs):
-        self.decorrelators = (*self.decorrelators, HaasEffect(*args, **kwargs))
+    def haas_effect(self, **kwargs) -> Self:
+        self._add_decorrelator(HaasEffect, **kwargs)
         return self
+
+    def _add_decorrelator(self, cls: type[Decorrelator], **kwargs) -> None:
+        kwargs = self._validate(cls, **kwargs)
+        match self._decorrelators:
+            case []:
+                self._decorrelators = [
+                    lambda _: cls(
+                        sample_rate_hz=self.sample_rate_hz,
+                        num_ins=self.num_ins,
+                        num_outs=self.num_outs,
+                        **kwargs,
+                    ),
+                ]
+            case [*_, _]:
+                self._decorrelators = [
+                    *self._decorrelators,
+                    lambda i: cls(
+                        sample_rate_hz=self.sample_rate_hz,
+                        num_ins=self._decorrelators[i].num_outs,
+                        num_outs=kwargs.get('num_outs', self.num_outs),
+                        **kwargs,
+                    ),
+                ]
+        if self._hot:
+            self._decorrelators = [
+                *self._decorrelators[:-1],
+                self._decorrelators[-1](),
+            ]  # Construct the decorrelator immediately if we're hot loading.
+
+    def _validate(
+        self, cls, *, sample_rate_hz: int | None = None, **kwargs
+    ) -> dict[str, Any]:
+        if sample_rate_hz is not None and sample_rate_hz != self.sample_rate_hz:
+            raise TypeError(
+                f'{sample_rate_hz=} was supplied to {cls} but differs from the sample rate of the enclosing SignalChain ({self.sample_rate_hz})'
+            )
+        return kwargs
 
     def __call__(self, input_sig: NDArray) -> NDArray:
-        """Decorrelate input_sig with all decorrelators in this SignalChain.
-
-        Parameters
-        ----------
-        input_sig : NDArray
-            The original signal.
-
-        Returns
-        -------
-        cascaded_sig : NDArray
-            The signal processed by cascading decorrelators.
-
-        """
-        for decorrelator in self.decorrelators:
-            (cascaded_sig := decorrelator(input_sig))
+        """Decorrelate input_sig with all decorrelators in this SignalChain."""
+        self._init_decorrelators()
+        cascaded_sig = input_sig
+        for decorrelator in self._decorrelators:
+            cascaded_sig = decorrelator(input_sig)
             input_sig = cascaded_sig
         return cascaded_sig
+
+    def _init_decorrelators(self) -> None:
+        if self._hot:
+            return
+
+        for i, decorralator in enumerate(self._decorrelators):
+            self._decorrelators[i] = decorralator(i - 1)
+
+        self._hot = True
 
 
 # ----------------------------------------------------------------------------
@@ -127,64 +179,32 @@ class HaasEffect(Decorrelator):
     width: float = 0.5
 
     def decorrelate(self, input_sig: NDArray) -> NDArray:
-        """Perform a Haas Effect decorrelation on input_sig.
-
-        Parameters
-        ----------
-        input_sig : NDArray
-            The mono or stereo input signal to upmix or decorrelate.
-
-        Returns
-        -------
-        output_sig : NDArray
-            The stereoized, decorrelated output signal.
-
-        """
-        # convert to 32 bit floating point, if it isn't already
+        """Perform a Haas Effect decorrelation on input_sig."""
         input_sig = dsp.to_float32(input_sig)
-
-        # perform the decorrelation
         output_sig = self.haas_delay(input_sig)
 
-        # adjust the width parameter if present.
         if self.width is not None:
             output_sig = dsp.apply_stereo_width(output_sig, self.width)
 
-        # normalize by rms to match input
         dsp.rms_normalize(input_sig, output_sig)
 
         return output_sig
 
     def haas_delay(self, input_sig: NDArray) -> NDArray:
-        """Return a stereo signal where the specified channel is delayed by delay_time.
-
-        Parameters
-        ----------
-        input_sig : NDArray
-            The input signal to apply the Haas Effect to.
-
-        Returns
-        -------
-        output_sig : NDArray
-            The wet signal with one channel delayed.
-
-        """
+        """Return a stereo signal where the specified channel is delayed by delay_time."""
         output_sig = input_sig
-        delay_len_samples = round(self.delay_time_seconds * self.fs)
+        delay_len_samples = round(self.delay_time_seconds * self.sample_rate_hz)
         mono = False
 
-        # if the input was mono, convert it to stereo.
         if input_sig.ndim == 1:
             mono = True
             output_sig = dsp.mono_to_stereo(input_sig)
 
-        # if applicable, convert the left-right signal to a mid-side signal.
         if self.mode == HaasEffectMode.MS:
             if mono:  # sides will be silent
                 mids = dsp.stereo_to_mono(output_sig)
                 # this is technically incorrect, but we fix it later.
                 sides = mids
-                # now stack them and store back into audio_sig
                 output_sig = np.column_stack((mids, sides))
             else:
                 output_sig = dsp.LR_to_MS(output_sig)
@@ -197,8 +217,6 @@ class HaasEffect(Decorrelator):
             (output_sig[:, -(self.delayed_channel - 1)], zero_padding_sig)
         )
 
-        # get the location of the wet and dry channels
-        # then put them in a tuple so that they can be stacked
         location = (
             (dry_channel, wet_channel)
             if self.delayed_channel
@@ -206,7 +224,6 @@ class HaasEffect(Decorrelator):
         )
         output_sig = np.column_stack(location)
 
-        # convert back to left-right, if we delayed the mid and sides.
         if self.mode == HaasEffectMode.MS:
             output_sig = dsp.MS_to_LR(output_sig)
             if mono:
@@ -221,6 +238,27 @@ class HaasEffect(Decorrelator):
 # Velvet Noise Decorrelator
 #
 # ----------------------------------------------------------------------------
+
+
+# @dataclass
+# class _VelvetNoiseSegment:
+#     """Dataclass for storing indexes to nonzero samples of Velvet Noise."""
+
+#     negative_impulse_indexes: Sequence[int]
+#     positive_impulse_indexes: Sequence[int]
+
+#     def __iter__(self) -> Iterator[Sequence[int]]:
+#         return self.negative_impulse_indexes, self.positive_impulse_indexes
+
+
+# @dataclass
+# class _VelvetNoiseSequence:
+#     """Dataclass for storing Segments of Velvet Noise for each output channel."""
+
+#     outputs: Sequence[Sequence[_VelvetNoiseSegment]]
+
+#     def __iter__(self) -> Iterator[_VelvetNoiseSegment]:
+#         return self.outputs
 
 
 @dataclass(kw_only=True)
@@ -348,7 +386,7 @@ class VelvetNoise(Decorrelator):
             The finite impulse response of the filters as a numpy array of shape (filter_len, num_outs).
 
         """
-        filter_len = int(self.duration * self.fs)
+        filter_len = int(self.duration * self.sample_rate_hz)
         fir = np.zeros((filter_len, self.num_outs))
         for ci in range(self.num_outs):
             for si, (negative_impulses, postive_impulses) in enumerate(
@@ -379,9 +417,9 @@ class VelvetNoise(Decorrelator):
             np.random.seed(self.seed)
 
         velvet_noise = []
-        sequence_len = int(round(self.fs * self.duration))
+        sequence_len = int(round(self.sample_rate_hz * self.duration))
         grid_size = (
-            self.fs / self.density
+            self.sample_rate_hz / self.density
         )  # average spacing between two impulses (samples per impulse)
         num_segments = len(self.segment_envelope)
 
