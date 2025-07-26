@@ -7,7 +7,6 @@ import numpy as np
 from numpy.typing import NDArray
 
 from VNDecorrelate.utils import dsp
-from VNDecorrelate.utils.dsp import log_distribution, log_grid_size, uniform_density
 
 # ----------------------------------------------------------------------------
 #
@@ -404,19 +403,20 @@ class VelvetNoise(Decorrelator):
             np.random.seed(self.seed)
 
         velvet_noise = _VelvetNoiseSequence(output_channels=[])
-        sequence_len = int(round(self.sample_rate_hz * self.duration))
-        grid_size = (
+        fir_length_samples = int(round(self.sample_rate_hz * self.duration))
+        impulse_interval = (
             self.sample_rate_hz / self.density
-        )  # average spacing between two impulses (samples per impulse)
+        )  # average number of samples between two impulses
         num_segments = len(self.segment_envelope)
 
-        intervals = np.array(
-            [
-                log_grid_size(impulse_index, self.num_impulses)
-                for impulse_index in range(self.num_impulses)
-            ]
+        log_impulse_intervals = 10.0 ** (
+            (np.arange(self.num_impulses + 1) - 1) / self.num_impulses
+        )  # number of samples between each logarithimcally distributed impulse
+        log_impulse_intervals[0] = (
+            1.0  # padding for cumulative sum, use 1.0 to avoid propagating negative indexes in log_distribution
         )
-        sum_intervals = np.sum(intervals)
+
+        sum_log_impulse_intervals = np.cumsum(log_impulse_intervals)
 
         for _ in range(self.num_outs):
             impulse_sign_rng = np.random.uniform(low=0, high=1, size=self.num_impulses)
@@ -424,6 +424,19 @@ class VelvetNoise(Decorrelator):
                 low=0, high=1, size=self.num_impulses
             )
             sign = (2 * np.round(impulse_sign_rng)) - 1
+
+            fir_indexes = (
+                dsp.log_distribution(
+                    impulse_offset_rng,
+                    log_impulse_intervals,
+                    sum_log_impulse_intervals,
+                    fir_length_samples,
+                )
+                if self.use_log_distribution
+                else dsp.uniform_density(
+                    np.arange(self.num_impulses), impulse_offset_rng, impulse_interval
+                )
+            )
             segments = [
                 _VelvetNoiseSegment(
                     negative_impulse_indexes=[],
@@ -431,25 +444,12 @@ class VelvetNoise(Decorrelator):
                 )
                 for _ in self.segment_envelope
             ]
-            fir_index = 0  # location of the impulse in the velvet noise sequence
             for impulse_index in range(self.num_impulses):
-                fir_index = (
-                    log_distribution(
-                        impulse_index,
-                        impulse_offset_rng[impulse_index],
-                        intervals,
-                        sum_intervals,
-                        sequence_len,
-                        self.num_impulses,
-                    )
-                    if self.use_log_distribution
-                    else uniform_density(impulse_index, impulse_offset_rng, grid_size)
-                )
                 segment_index = int(impulse_index / (self.num_impulses / num_segments))
                 sign_index = int((sign[impulse_index] + 1) / 2)
-                segments[segment_index][sign_index].append(fir_index)
+                segments[segment_index][sign_index].append(fir_indexes[impulse_index])
 
-            # filter out unused segments and append to list
+            # filter out any empty segments and append to list
             velvet_noise.output_channels.append(list(filter(None, segments)))
 
         return velvet_noise

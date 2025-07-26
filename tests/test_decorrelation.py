@@ -37,6 +37,8 @@ class DecorrelationTestCase(TestCase):
         self.assertTrue(sequences == vnd._vn_sequence)
         vnd = VelvetNoise(sample_rate_hz=44100, seed=2)
         self.assertFalse(sequences == vnd._vn_sequence)
+        vnd = VelvetNoise(sample_rate_hz=44100, use_log_distribution=False, seed=1)
+        self.assertFalse(sequences == vnd._vn_sequence)
 
     def test_properties(self):
         fs = 44100

@@ -1,7 +1,7 @@
 [project]
 name = "vndecorrelate"
 version = "0.1.0"
-description = "Add your description here"
+description = "A Velvet-Noise Decorrelator for audio"
 readme = "README.md"
 requires-python = ">=3.12.1"
 dependencies = [

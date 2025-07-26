@@ -140,34 +140,29 @@ def MS_to_LR(input_sig: NDArray) -> NDArray:
     return np.column_stack((L, R))
 
 
-def log_grid_size(impulse_index: int, num_impulses: int) -> float:
-    """Given an impulse index and a total number of impulses,
-    return the samples per impulse when distributing logarithmically towards the start of the sequence."""
-    return pow(10, impulse_index / num_impulses)
-
-
 def log_distribution(
-    impulse_index: int,
-    random: np.float64,
-    intervals: NDArray,
-    sum_intervals: float,
-    sequence_len: int,
-    num_impulses: int,
-) -> int:
+    random: NDArray,
+    log_impulse_intervals: NDArray,
+    sum_log_impulse_intervals: NDArray,
+    fir_length_samples: int,
+) -> NDArray:
     """Return the randomized position of the impulse in the FIR, distributing logarithmically towards the start of the filter."""
-    return int(
-        np.round(random * (log_grid_size(impulse_index, num_impulses) - 1))
-        + np.sum(intervals[:impulse_index]) * (sequence_len / sum_intervals)
-    )
+    return (
+        np.round(random * (log_impulse_intervals[:-1] - 1))
+        + sum_log_impulse_intervals[:-1]
+        * (fir_length_samples / sum_log_impulse_intervals[-1])
+    ).astype(np.int32)
 
 
-def uniform_density(impulse_index: int, random_array: NDArray, grid_size: float) -> int:
+def uniform_density(
+    impulse_indexes: NDArray, random_array: NDArray, impulse_interval: float
+) -> int:
     """Return the randomized position of the impulse in the FIR, preserving a uniform density across the filter."""
-    return int(
+    return (
         np.round(
-            impulse_index * grid_size + random_array[impulse_index] * (grid_size - 1)
+            impulse_indexes * impulse_interval + random_array * (impulse_interval - 1)
         )
-    )
+    ).astype(np.int32)
 
 
 def check_mono(input_sig: NDArray) -> None:
