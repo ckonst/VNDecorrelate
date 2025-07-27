@@ -56,7 +56,7 @@ def encode_signal_to_side_channel(
     Rd = decorrelated_sig[:, 1]
     M = L + R
     S = Ld - Rd
-    return np.column_stack(((M + S) / 2, ((M - S) / 2)))
+    return np.column_stack(((M + S) * 0.5, ((M - S) * 0.5)))
 
 
 def to_float32(input_sig: NDArray) -> NDArray[np.float32]:
@@ -155,13 +155,13 @@ def log_distribution(
 
 
 def uniform_density(
-    impulse_indexes: NDArray, random_array: NDArray, impulse_interval: float
+    impulse_indexes: NDArray,
+    random: NDArray,
+    impulse_interval: float,
 ) -> int:
     """Return the randomized position of the impulse in the FIR, preserving a uniform density across the filter."""
-    return (
-        np.round(
-            impulse_indexes * impulse_interval + random_array * (impulse_interval - 1)
-        )
+    return np.round(
+        impulse_indexes * impulse_interval + random * (impulse_interval - 1)
     ).astype(np.int32)
 
 

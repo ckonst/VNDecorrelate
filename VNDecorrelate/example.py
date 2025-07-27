@@ -10,7 +10,7 @@ def main() -> None:
         SignalChain(sample_rate_hz=fs)
         .velvet_noise(
             duration=0.03,
-            num_impulses=60,
+            num_impulses=30,
             seed=1,
             use_log_distribution=True,
         )

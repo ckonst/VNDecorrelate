@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Callable, Iterator, Protocol, Self, Sequence
 
@@ -240,8 +240,8 @@ class HaasEffect(Decorrelator):
 class _VelvetNoiseSegment:
     """Dataclass for storing indexes to nonzero samples of Velvet Noise."""
 
-    negative_impulse_indexes: Sequence[int]
-    positive_impulse_indexes: Sequence[int]
+    negative_impulse_indexes: Sequence[int] = field(default_factory=list)
+    positive_impulse_indexes: Sequence[int] = field(default_factory=list)
 
     def __iter__(self) -> Iterator[tuple[Sequence[int], str]]:
         """Return an iterator containing a pair of the positive/negative impulse indexes, and the method name to use for the optimized convolution."""
@@ -259,7 +259,7 @@ class _VelvetNoiseSegment:
             return self.positive_impulse_indexes
         raise ValueError('Invalid key')
 
-    def __setitem__(self, key: int, value: Sequence[int]) -> Sequence[int]:
+    def __setitem__(self, key: int, value: Sequence[int]) -> None:
         if key == 0:
             self.negative_impulse_indexes = value
             return
@@ -271,22 +271,43 @@ class _VelvetNoiseSegment:
 
 @dataclass(kw_only=True, slots=True)
 class _VelvetNoiseSequence:
-    """Dataclass for storing Segments of Velvet Noise for each output channel."""
+    """Dataclass for storing Segments of Velvet Noise within a Sequence."""
 
-    output_channels: Sequence[Sequence[_VelvetNoiseSegment]]
+    segments: Sequence[_VelvetNoiseSegment] = field(default_factory=list)
 
-    def __iter__(self) -> Iterator[Sequence[_VelvetNoiseSegment]]:
+    @classmethod
+    def _with(cls, *, num_segments: int) -> Self:
+        return cls(segments=[_VelvetNoiseSegment() for _ in range(num_segments)])
+
+    def __iter__(self) -> Iterator[_VelvetNoiseSegment]:
+        return iter(self.segments)
+
+    def __getitem__(self, key: int) -> _VelvetNoiseSegment:
+        return self.segments[key]
+
+    def __setitem__(self, key: int, value: Sequence[_VelvetNoiseSegment]) -> None:
+        self.segments[key] = value
+
+
+@dataclass(kw_only=True, slots=True)
+class _ParallelVelvetNoise:
+    """Dataclass for storing Velvet Noise Sequences for each output channel."""
+
+    output_channels: Sequence[_VelvetNoiseSequence] = field(default_factory=list)
+
+    def __iter__(self) -> Iterator[_VelvetNoiseSequence]:
         return iter(self.output_channels)
 
-    def __getitem__(self, key: int) -> Sequence[_VelvetNoiseSegment]:
+    def __getitem__(self, key: int) -> _VelvetNoiseSequence:
         return self.output_channels[key]
+
+    def __setitem__(self, key: int, value: Sequence[_VelvetNoiseSequence]) -> None:
+        self.output_channels[key] = value
 
 
 @dataclass(kw_only=True, slots=True)
 class VelvetNoise(Decorrelator):
     """A velvet noise decorrelator for audio.
-
-    See method docstrings for more details.
 
     Attributes
     ----------
@@ -307,23 +328,28 @@ class VelvetNoise(Decorrelator):
     num_impulses: int = 30
     segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2)
     use_log_distribution: bool = True
-    seed: int = None
+    seed: int | None = None
 
-    def __post_init__(self):
-        """"""
-        """
-        It maps each channel to a list of equal length segments, determined by segment_envelope.
-        Each segment is then split into lists of negative and positive impulses at indices 0 and 1 respectively.
-        """
-        self._vn_sequence: _VelvetNoiseSequence = self._generate()
+    # _velvet_noise maps each channel to a list of equal length segments, determined by segment_envelope.
+    # Each segment is then split into lists of negative and positive impulses at indices 0 and 1 respectively.
+    _velvet_noise: _ParallelVelvetNoise = ...
+
+    def __post_init__(self) -> None:
+        if self.num_impulses > self.fir_length_samples * 0.5:
+            density = self.density
+            raise ValueError(
+                f'Velvet Noise Filter of length {self.fir_length_samples} with {self.num_impulses} impulses is not sparse! ({density=:.2f})\n'
+                '\tnum_impulses must be less than half the FIR length in samples.'
+            )
+        self._velvet_noise = self._generate()
 
     def convolve(self, input_sig: NDArray) -> NDArray:
-        """Perform the latency-free convolution of the velvet noise filters onto each channel of a signal."""
+        """Perform the optimized convolution of the velvet noise filters onto each channel of a signal."""
         sig_len = len(input_sig)
         segment_buffer = np.zeros(sig_len, dtype=np.float32)
         output_sig = np.zeros((sig_len, self.num_outs), dtype=np.float32)
 
-        for channel_index, channel_segments in enumerate(self._vn_sequence):
+        for channel_index, channel_segments in enumerate(self._velvet_noise):
             for segment_index, segment in enumerate(channel_segments):
                 for signed_indexes, operator in segment:
                     for impulse_index in signed_indexes:
@@ -364,22 +390,19 @@ class VelvetNoise(Decorrelator):
 
     @property
     def density(self) -> float:
-        """The average density in impulses per second."""
+        """The average density in impulses per second. Homogenous across all channels."""
         return self.num_impulses / self.duration
 
     @property
+    def fir_length_samples(self) -> int:
+        """The length of the finite impulse response in samples. Homogenous across all channels."""
+        return int(round(self.sample_rate_hz * self.duration))
+
+    @property
     def FIR(self) -> NDArray:
-        """Return the finite impulse response as a numpy array.
-
-        Returns
-        -------
-        fir : NDArray
-            The finite impulse response of the filters as a numpy array of shape (filter_len, num_outs).
-
-        """
-        filter_len = int(self.duration * self.sample_rate_hz)
-        fir = np.zeros((filter_len, self.num_outs))
-        for channel_index, channel_segments in enumerate(self._vn_sequence):
+        """Return the finite impulse responses (for each channel) as a numpy array of shape (filter_len, num_outs)."""
+        fir = np.zeros((self.fir_length_samples, self.num_outs))
+        for channel_index, channel_segments in enumerate(self._velvet_noise):
             for segment_index, segment in enumerate(channel_segments):
                 for signed_indexes, operator in segment:
                     for impulse_index in signed_indexes:
@@ -389,7 +412,7 @@ class VelvetNoise(Decorrelator):
                         )(self.segment_envelope[segment_index])
         return fir
 
-    def _generate(self) -> _VelvetNoiseSequence:
+    def _generate(self) -> _ParallelVelvetNoise:
         """Generate a velvet noise finite impulse response filter to convolve with an input signal.
 
         To avoid audible smearing of transients the following are optionally applied:
@@ -402,61 +425,54 @@ class VelvetNoise(Decorrelator):
         if self.seed is not None:
             np.random.seed(self.seed)
 
-        velvet_noise = _VelvetNoiseSequence(output_channels=[])
-        fir_length_samples = int(round(self.sample_rate_hz * self.duration))
-        impulse_interval = (
-            self.sample_rate_hz / self.density
-        )  # average number of samples between two impulses
+        velvet_noise = _ParallelVelvetNoise()
         num_segments = len(self.segment_envelope)
 
+        # average number of samples between two impulses
+        impulse_interval = self.sample_rate_hz / self.density
+
+        # number of samples between each logarithimcally distributed impulse
         log_impulse_intervals = 10.0 ** (
-            (np.arange(self.num_impulses + 1) - 1) / self.num_impulses
-        )  # number of samples between each logarithimcally distributed impulse
-        log_impulse_intervals[0] = (
-            1.0  # padding for cumulative sum, use 1.0 to avoid propagating negative indexes in log_distribution
+            2 * (np.arange(self.num_impulses + 1) / self.num_impulses)
         )
 
         sum_log_impulse_intervals = np.cumsum(log_impulse_intervals)
 
-        for _ in range(self.num_outs):
-            impulse_sign_rng = np.random.uniform(low=0, high=1, size=self.num_impulses)
-            impulse_offset_rng = np.random.uniform(
-                low=0, high=1, size=self.num_impulses
-            )
-            sign = (2 * np.round(impulse_sign_rng)) - 1
+        impulse_sign_rng = np.random.uniform(
+            low=0,
+            high=1,
+            size=(self.num_impulses, self.num_outs),
+        )
+        impulse_offset_rng = np.random.uniform(
+            low=0,
+            high=1,
+            size=(self.num_impulses, self.num_outs),
+        )
+        signs = (2 * np.round(impulse_sign_rng)) - 1
 
+        for channel_index in range(self.num_outs):
             fir_indexes = (
                 dsp.log_distribution(
-                    impulse_offset_rng,
+                    impulse_offset_rng[:, channel_index],
                     log_impulse_intervals,
                     sum_log_impulse_intervals,
-                    fir_length_samples,
+                    self.fir_length_samples,
                 )
                 if self.use_log_distribution
                 else dsp.uniform_density(
-                    np.arange(self.num_impulses), impulse_offset_rng, impulse_interval
+                    np.arange(self.num_impulses),
+                    impulse_offset_rng[:, channel_index],
+                    impulse_interval,
                 )
             )
-            segments = [
-                _VelvetNoiseSegment(
-                    negative_impulse_indexes=[],
-                    positive_impulse_indexes=[],
-                )
-                for _ in self.segment_envelope
-            ]
+
+            sequence = _VelvetNoiseSequence._with(num_segments=num_segments)
+
             for impulse_index in range(self.num_impulses):
                 segment_index = int(impulse_index / (self.num_impulses / num_segments))
-                sign_index = int((sign[impulse_index] + 1) / 2)
-                segments[segment_index][sign_index].append(fir_indexes[impulse_index])
+                sign_index = int((signs[impulse_index, channel_index] + 1) / 2)
+                sequence[segment_index][sign_index].append(fir_indexes[impulse_index])
 
-            # filter out any empty segments and append to list
-            velvet_noise.output_channels.append(list(filter(None, segments)))
+            velvet_noise.output_channels.append(sequence)
 
         return velvet_noise
-
-
-if __name__ == '__main__':
-    import scipy.io.wavfile as wavfile
-
-    fs, guitar = wavfile.read('audio/guitar.wav')
-    VelvetNoise(sample_rate_hz=fs)(guitar)

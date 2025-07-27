@@ -6,23 +6,23 @@ from VNDecorrelate.utils import dsp
 
 
 class DSPTestCase(TestCase):
-    def test_apply_stereo_width(self):
+    def test__apply_stereo_width(self):
         x1 = np.random.uniform(size=(100, 2))
         y1 = dsp.apply_stereo_width(x1, 1.0)
-        self.assertTrue(np.sum(dsp.LR_to_MS(y1)[:, 0]) == 0.0)
-        self.assertTrue(np.sum(dsp.LR_to_MS(y1)[:, 1]) != 0.0)
+        self.assertAlmostEqual(np.sum(dsp.LR_to_MS(y1)[:, 0]), 0.0)
+        self.assertNotAlmostEqual(np.sum(dsp.LR_to_MS(y1)[:, 1]), 0.0)
         x2 = np.random.uniform(size=(100, 2))
         y2 = dsp.apply_stereo_width(x2, 0.0)
-        self.assertTrue(np.sum(dsp.LR_to_MS(y2)[:, 1]) == 0.0)
-        self.assertTrue(np.sum(dsp.LR_to_MS(y2)[:, 0]) != 0.0)
+        self.assertAlmostEqual(np.sum(dsp.LR_to_MS(y2)[:, 1]), 0.0)
+        self.assertNotAlmostEqual(np.sum(dsp.LR_to_MS(y2)[:, 0]), 0.0)
         x3 = np.full((100, 2), 100)
         y3 = dsp.apply_stereo_width(x3, 0.5)
-        self.assertTrue(np.sum(y3) == 100 * 100)
+        self.assertAlmostEqual(np.sum(y3), 100 * 100)
         x4 = np.full((100, 2), 100)
         y4 = dsp.apply_stereo_width(x4, 0.25)
         self.assertTrue(not np.array_equal(x4, y4))
 
-    def test_encode_signal_to_side_channel(self):
+    def test__encode_signal_to_side_channel(self):
         x1 = np.array([])
         x2 = np.array([])
         with self.assertRaises(ValueError):
@@ -51,9 +51,9 @@ class DSPTestCase(TestCase):
 
     def test_to_float32(self):
         x = np.array([1, 2, 3, 4], dtype=np.int32)
-        self.assertTrue(dsp.to_float32(x).dtype == np.float32)
+        self.assertEqual(dsp.to_float32(x).dtype, np.float32)
         x = np.array([1, 2, 3, 4], dtype=np.float32)
-        self.assertTrue(dsp.to_float32(x).dtype == np.float32)
+        self.assertEqual(dsp.to_float32(x).dtype, np.float32)
 
     def test_peak_normalize(self):
         x1 = np.random.normal(loc=0.0, scale=100.0, size=(100, 100))
@@ -61,13 +61,13 @@ class DSPTestCase(TestCase):
         x3 = np.random.uniform(low=2.0, high=10.0, size=(50_000, 2))
         x4 = np.random.uniform(size=(100, 100))
         dsp.peak_normalize(x1)
-        self.assertTrue(np.max(np.abs(x1)) <= 1.0)
+        self.assertLessEqual(np.max(np.abs(x1)), 1.0)
         dsp.peak_normalize(x2)
-        self.assertTrue(np.max(np.abs(x2)) <= 1.0)
+        self.assertLessEqual(np.max(np.abs(x2)), 1.0)
         dsp.peak_normalize(x3)
-        self.assertTrue(np.max(np.abs(x3)) <= 1.0)
+        self.assertLessEqual(np.max(np.abs(x3)), 1.0)
         dsp.peak_normalize(x4)
-        self.assertTrue(np.max(np.abs(x1)) <= 1.0)
+        self.assertLessEqual(np.max(np.abs(x1)), 1.0)
 
     def test_rms_normalize(self):
         x1 = np.random.normal(loc=0.0, scale=100.0, size=(100, 100))
@@ -76,11 +76,11 @@ class DSPTestCase(TestCase):
         x4 = np.random.uniform(size=(100, 100))
         sum_ = np.sum(x4)
         dsp.rms_normalize(x1, x4)
-        self.assertTrue(sum_ != np.sum(x4))
+        self.assertNotAlmostEqual(sum_, np.sum(x4))
         dsp.rms_normalize(x2, x4)
-        self.assertTrue(sum_ != np.sum(x4))
+        self.assertNotAlmostEqual(sum_, np.sum(x4))
         dsp.rms_normalize(x3, x4)
-        self.assertTrue(sum_ != np.sum(x4))
+        self.assertNotAlmostEqual(sum_, np.sum(x4))
 
     def test_mono_to_stereo(self):
         x = np.array([1, 2, 3, 4])

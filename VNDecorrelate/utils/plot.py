@@ -19,15 +19,14 @@ def plot_signal(input_sig: NDArray, title: str = 'Signal') -> None:
 
 def main():
     """Plot input and output signals, and velvet noise sequences."""
-    VNS_DURATION = 0.03  # duration of VNS in seconds
-    M = 30  # number of impulses
 
     sample_rate, sig_float32 = wavfile.read('audio/guitar.wav')
     vnd = VelvetNoise(
         sample_rate_hz=sample_rate,
-        duration=VNS_DURATION,
-        num_impulses=M,
+        duration=0.03,
+        num_impulses=30,
         num_outs=2,
+        use_log_distribution=True,
     )
     result = vnd.decorrelate(sig_float32)
     vns = vnd.FIR
