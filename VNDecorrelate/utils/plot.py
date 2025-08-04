@@ -20,7 +20,7 @@ def plot_signal(input_sig: NDArray, title: str = 'Signal') -> None:
 def main():
     """Plot input and output signals, and velvet noise sequences."""
 
-    sample_rate, sig_float32 = wavfile.read('audio/guitar.wav')
+    sample_rate, sig_float32 = wavfile.read('audio/viola.wav')
     vnd = VelvetNoise(
         sample_rate_hz=sample_rate,
         duration=0.03,

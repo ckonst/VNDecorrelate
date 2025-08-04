@@ -295,6 +295,10 @@ class _ParallelVelvetNoise:
 
     output_channels: Sequence[_VelvetNoiseSequence] = field(default_factory=list)
 
+    @property
+    def num_outs(self) -> int:
+        return len(self.output_channels)
+
     def __iter__(self) -> Iterator[_VelvetNoiseSequence]:
         return iter(self.output_channels)
 
@@ -361,7 +365,7 @@ class VelvetNoise(Decorrelator):
                         )(input_sig[:, channel_index][impulse_index:])
                 segment_buffer *= self.segment_envelope[segment_index]
                 output_sig[:, channel_index] += segment_buffer
-                segment_buffer *= 0
+                segment_buffer.fill(0)
         return output_sig
 
     def decorrelate(self, input_sig: NDArray) -> NDArray:
@@ -402,14 +406,19 @@ class VelvetNoise(Decorrelator):
     def FIR(self) -> NDArray:
         """Return the finite impulse responses (for each channel) as a numpy array of shape (filter_len, num_outs)."""
         fir = np.zeros((self.fir_length_samples, self.num_outs))
+        indexes, values = (
+            [[] for _ in range(self.num_outs)],
+            [[] for _ in range(self.num_outs)],
+        )
         for channel_index, channel_segments in enumerate(self._velvet_noise):
             for segment_index, segment in enumerate(channel_segments):
-                for signed_indexes, operator in segment:
+                for (signed_indexes, _), sign in zip(segment, [-1, 1]):
                     for impulse_index in signed_indexes:
-                        fir[impulse_index, channel_index] = getattr(
-                            fir[impulse_index, channel_index],
-                            operator.replace('i', ''),  # ugh
-                        )(self.segment_envelope[segment_index])
+                        indexes[channel_index].append(impulse_index)
+                        values[channel_index].append(
+                            self.segment_envelope[segment_index] * sign
+                        )
+        np.put_along_axis(fir, np.array(indexes).T, np.array(values).T, 0)
         return fir
 
     def _generate(self) -> _ParallelVelvetNoise:
