@@ -49,7 +49,7 @@ class Decorrelator(ABC, SignalProcessor):
 #
 # ----------------------------------------------------------------------------
 
-_LazyDecorrelator = Callable[[], Decorrelator] | Decorrelator
+type _LazyDecorrelator = Callable[[], Decorrelator] | Decorrelator
 
 
 @dataclass(kw_only=True, slots=True)

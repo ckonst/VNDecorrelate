@@ -179,3 +179,69 @@ def check_stereo(input_sig: NDArray) -> None:
         raise ValueError(
             f'Input shape invalid: Expected shape (num samples, 2), but got shape {input_sig.shape}.'
         )
+
+
+def check_equal_length(x: NDArray, y: NDArray) -> None:
+    """If the input signals do not have equal length, raise an error."""
+    if x.shape[0] != y.shape[0]:
+        raise ValueError(
+            f'Input length mismatch: Expected signals of equal length, but got lengths {x.shape[0]} and {y.shape[0]}.'
+        )
+
+
+def cross_correlogram(
+    x: NDArray,
+    y: NDArray,
+    sample_rate_hz: int = 44100,
+    max_lag_seconds: int = 0.02,
+    window_size_seconds: float = 0.02,
+    stride_seconds: float = 0.01,
+    epsilon: float = 1e-10,
+) -> NDArray:
+    """Compute the cross-correlogram between two mono signals."""
+    check_mono(x)
+    check_mono(y)
+    check_equal_length(x, y)
+    x = to_float32(x)
+    y = to_float32(y)
+
+    window_size_samples = int(window_size_seconds * sample_rate_hz)
+    stride_samples = int(stride_seconds * sample_rate_hz)
+    max_lag_samples = int(max_lag_seconds * sample_rate_hz)
+    num_lags = 2 * max_lag_samples + 1
+
+    window_indexes = np.arange(0, len(x) - window_size_samples + 1, stride_samples)
+
+    cross_correlogram = np.array(
+        [
+            (
+                np.correlate(
+                    xnk := x[start : start + window_size_samples],
+                    ynkt := y[start : start + window_size_samples],
+                    mode='full',
+                )
+                / (
+                    np.sqrt(np.dot(xnk, xnk) * np.dot(ynkt, ynkt))
+                    + epsilon  # Prevent division by zero
+                )
+            )[:num_lags]
+            for start in window_indexes
+        ]
+    )
+
+    return cross_correlogram
+
+
+def generate_sine_sweep(
+    start_freq_hz: float,
+    end_freq_hz: float,
+    duration_seconds: float,
+    sample_rate_hz: int = 44100,
+) -> NDArray:
+    """Generate a sine sweep signal from start_freq_hz to end_freq_hz over duration_seconds."""
+    t = np.linspace(
+        0, duration_seconds, int(sample_rate_hz * duration_seconds), endpoint=False
+    )
+    k = np.log(end_freq_hz / start_freq_hz) / duration_seconds
+    sine_sweep = np.sin(2 * np.pi * start_freq_hz * (np.exp(k * t) - 1) / k)
+    return sine_sweep.astype(np.float32)

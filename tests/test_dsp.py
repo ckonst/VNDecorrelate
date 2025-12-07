@@ -142,3 +142,23 @@ class DSPTestCase(TestCase):
         x = np.array([1, 2, 3, 4])
         with self.assertRaises(ValueError):
             dsp.stereo_to_mono(x)
+
+    def test_cross_correlogram(self):
+        fs = 16000  # 16 kHz sample rate
+        t = np.linspace(0, 2.0, 2 * fs)
+        x = np.sin(2 * np.pi * 440 * t)  # 440 Hz sine wave
+        y = np.sin(2 * np.pi * 440 * t + np.pi / 6) + 0.05 * np.random.normal(
+            size=len(t)
+        )  # Phase shifted sin wave + small noise
+        ccg = dsp.cross_correlogram(
+            x,
+            y,
+            sample_rate_hz=fs,
+            max_lag_seconds=0.05,
+            window_size_seconds=0.02,
+            stride_seconds=0.01,
+        )
+        self.assertTrue(
+            ccg.shape[0] == 199
+        )  # 199 windows for a 2s signal at 10ms stride
+        self.assertTrue(ccg.shape[1] == 639)  # 639 lags for ±5 ms at 16 kHz
