@@ -141,27 +141,25 @@ def MS_to_LR(input_sig: NDArray) -> NDArray:
 
 
 def log_distribution(
-    random: NDArray,
+    randoms: NDArray,
     log_impulse_intervals: NDArray,
-    sum_log_impulse_intervals: NDArray,
-    fir_length_samples: int,
+    cumsum_log_impulse_intervals: NDArray,
 ) -> NDArray:
     """Return the randomized position of the impulse in the FIR, distributing logarithmically towards the start of the filter."""
     return (
-        np.round(random * (log_impulse_intervals[:-1] - 1))
-        + sum_log_impulse_intervals[:-1]
-        * (fir_length_samples / sum_log_impulse_intervals[-1])
+        np.round(randoms * (log_impulse_intervals[:-1] - 1))
+        + cumsum_log_impulse_intervals
     ).astype(np.int32)
 
 
 def uniform_density(
+    randoms: NDArray,
     impulse_indexes: NDArray,
-    random: NDArray,
     impulse_interval: float,
 ) -> int:
     """Return the randomized position of the impulse in the FIR, preserving a uniform density across the filter."""
     return np.round(
-        impulse_indexes * impulse_interval + random * (impulse_interval - 1)
+        impulse_indexes * impulse_interval + randoms * (impulse_interval - 1)
     ).astype(np.int32)
 
 
@@ -232,7 +230,7 @@ def cross_correlogram(
     return cross_correlogram
 
 
-def generate_sine_sweep(
+def sine_sweep(
     start_freq_hz: float,
     end_freq_hz: float,
     duration_seconds: float,

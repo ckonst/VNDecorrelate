@@ -5,7 +5,8 @@ import scipy.io.wavfile as wavfile
 from scipy import signal
 
 from VNDecorrelate.decorrelation import SignalChain, VelvetNoise
-from VNDecorrelate.utils import dsp, plot
+from VNDecorrelate.utils.dsp import cross_correlogram, sine_sweep
+from VNDecorrelate.utils.plot import plot_correlogram, plot_signal, plot_spectrogram
 
 
 class PlotTestCase(TestCase):
@@ -26,41 +27,40 @@ class PlotTestCase(TestCase):
         result = vnd.decorrelate(sig_float32)
         vns = vnd.FIR
 
-        plot.plot_signal(vns[:, 0], title='Velvet Noise Sequence L')
+        plot_signal(vns[:, 0], title='Velvet Noise Sequence L')
 
-        plot.plot_signal(vns[:, 1], title='Velvet Noise Sequence R')
+        plot_signal(vns[:, 1], title='Velvet Noise Sequence R')
 
-        plot.plot_signal(sig_float32, title='Input')
-
-        plot.plot_signal(result, title='Output')
+        plot_signal(sig_float32, title='Input')
+        plot_signal(result, title='Output')
 
         self.assertTrue(True)
 
     def test_plot_signal(self):
         x = np.random.uniform(size=100)
-        plot.plot_signal(x)
+        plot_signal(x)
         self.assertTrue(True)
 
     def test_plot_correlogram(self):
         fs = 16000  # 16 kHz sample rate
-        sine_sweep = dsp.generate_sine_sweep(
+        _sine_sweep = sine_sweep(
             start_freq_hz=20,
             end_freq_hz=8000,
             duration_seconds=9,
             sample_rate_hz=fs,
         )
-        plot.plot_spectrogram(
-            signal.spectrogram(sine_sweep, fs=fs)[-1], title='Sine Sweep Signal'
+        plot_spectrogram(
+            signal.spectrogram(_sine_sweep, fs=fs)[-1], title='Sine Sweep Signal'
         )
-        correlogram = dsp.cross_correlogram(
-            sine_sweep,
-            sine_sweep,
+        correlogram = cross_correlogram(
+            _sine_sweep,
+            _sine_sweep,
             sample_rate_hz=fs,
             max_lag_seconds=0.02,
             window_size_seconds=0.02,
             stride_seconds=0.01,
         )
-        plot.plot_correlogram(
+        plot_correlogram(
             correlogram,
             lag_seconds=0.02,
             time_seconds=9,
@@ -87,7 +87,7 @@ class PlotTestCase(TestCase):
         )
 
         output_sig = chain(guitar)
-        correlogram = dsp.cross_correlogram(
+        correlogram = cross_correlogram(
             output_sig[:, 0],
             output_sig[:, 1],
             sample_rate_hz=fs,
@@ -95,7 +95,7 @@ class PlotTestCase(TestCase):
             window_size_seconds=0.02,
             stride_seconds=0.01,
         )
-        plot.plot_correlogram(
+        plot_correlogram(
             correlogram,
             lag_seconds=0.02,
             time_seconds=9,

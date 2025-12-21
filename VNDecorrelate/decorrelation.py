@@ -6,7 +6,18 @@ from typing import Any, Callable, Iterator, Protocol, Self, Sequence
 import numpy as np
 from numpy.typing import NDArray
 
-from VNDecorrelate.utils import dsp
+from VNDecorrelate.utils.dsp import (
+    LR_to_MS,
+    MS_to_LR,
+    apply_stereo_width,
+    encode_signal_to_side_channel,
+    log_distribution,
+    mono_to_stereo,
+    rms_normalize,
+    stereo_to_mono,
+    to_float32,
+    uniform_density,
+)
 
 # ----------------------------------------------------------------------------
 #
@@ -176,13 +187,12 @@ class HaasEffect(Decorrelator):
 
     def decorrelate(self, input_sig: NDArray) -> NDArray:
         """Perform a Haas Effect decorrelation on input_sig."""
-        input_sig = dsp.to_float32(input_sig)
+        input_sig = to_float32(input_sig)
         output_sig = self.haas_delay(input_sig)
 
         if self.width is not None:
-            output_sig = dsp.apply_stereo_width(output_sig, self.width)
-
-        dsp.rms_normalize(input_sig, output_sig)
+            output_sig = apply_stereo_width(output_sig, self.width)
+        rms_normalize(input_sig, output_sig)
 
         return output_sig
 
@@ -194,16 +204,16 @@ class HaasEffect(Decorrelator):
 
         if input_sig.ndim == 1:
             mono = True
-            output_sig = dsp.mono_to_stereo(input_sig)
+            output_sig = mono_to_stereo(input_sig)
 
         if self.mode == HaasEffectMode.MS:
             if mono:  # sides will be silent
-                mids = dsp.stereo_to_mono(output_sig)
+                mids = stereo_to_mono(output_sig)
                 # this is technically incorrect, but we fix it later.
                 sides = mids
                 output_sig = np.column_stack((mids, sides))
             else:
-                output_sig = dsp.LR_to_MS(output_sig)
+                output_sig = LR_to_MS(output_sig)
 
         zero_padding_sig = np.zeros(delay_len_samples)
         wet_channel = np.concatenate(
@@ -221,7 +231,7 @@ class HaasEffect(Decorrelator):
         output_sig = np.column_stack(location)
 
         if self.mode == HaasEffectMode.MS:
-            output_sig = dsp.MS_to_LR(output_sig)
+            output_sig = MS_to_LR(output_sig)
             if mono:
                 # we duplicated the mono channel, here we compensate for it.
                 output_sig *= 0.5
@@ -377,19 +387,18 @@ class VelvetNoise(Decorrelator):
         Lastly, the output signal is normalized by the RMS of the input signal.
 
         """
-        input_sig = dsp.to_float32(input_sig)
+        input_sig = to_float32(input_sig)
 
         if input_sig.ndim == 1:
-            input_sig = dsp.mono_to_stereo(input_sig)
+            input_sig = mono_to_stereo(input_sig)
 
         output_sig = self.convolve(input_sig)
 
-        output_sig = dsp.encode_signal_to_side_channel(input_sig, output_sig)
+        output_sig = encode_signal_to_side_channel(input_sig, output_sig)
         if self.width is not None:
-            output_sig = dsp.apply_stereo_width(output_sig, self.width)
+            output_sig = apply_stereo_width(output_sig, self.width)
 
-        dsp.rms_normalize(input_sig, output_sig)
-
+        rms_normalize(input_sig, output_sig)
         return output_sig
 
     @property
@@ -445,7 +454,11 @@ class VelvetNoise(Decorrelator):
             2 * (np.arange(self.num_impulses + 1) / self.num_impulses)
         )
 
-        sum_log_impulse_intervals = np.cumsum(log_impulse_intervals)
+        cumsum_log_impulse_intervals = np.cumsum(log_impulse_intervals)
+
+        cumsum_log_impulse_intervals = cumsum_log_impulse_intervals[:-1] * (
+            self.fir_length_samples / cumsum_log_impulse_intervals[-1]
+        )
 
         impulse_sign_rng = np.random.uniform(
             low=0,
@@ -461,16 +474,15 @@ class VelvetNoise(Decorrelator):
 
         for channel_index in range(self.num_outs):
             fir_indexes = (
-                dsp.log_distribution(
+                log_distribution(
                     impulse_offset_rng[:, channel_index],
                     log_impulse_intervals,
-                    sum_log_impulse_intervals,
-                    self.fir_length_samples,
+                    cumsum_log_impulse_intervals,
                 )
                 if self.use_log_distribution
-                else dsp.uniform_density(
-                    np.arange(self.num_impulses),
+                else uniform_density(
                     impulse_offset_rng[:, channel_index],
+                    np.arange(self.num_impulses),
                     impulse_interval,
                 )
             )
