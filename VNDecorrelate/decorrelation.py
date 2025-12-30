@@ -321,7 +321,7 @@ class _ParallelVelvetNoise:
 
 @dataclass(kw_only=True, slots=True)
 class VelvetNoise(Decorrelator):
-    """A velvet noise decorrelator for audio.
+    """A `Velvet-Noise Decorrelator <http://www.dafx17.eca.ed.ac.uk/papers/DAFx17_paper_96.pdf>`__ for audio.
 
     Attributes
     ----------
@@ -335,7 +335,6 @@ class VelvetNoise(Decorrelator):
             Whether to distribute impulses logarithmically.
         seed : int
             The seed for the velvet noise generator.
-
     """
 
     duration: float = 0.03
