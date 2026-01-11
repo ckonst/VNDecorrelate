@@ -210,22 +210,25 @@ def cross_correlogram(
 
     window_indexes = np.arange(0, len(x) - window_size_samples + 1, stride_samples)
 
-    cross_correlogram = np.array(
-        [
-            (
-                np.correlate(
-                    xnk := x[start : start + window_size_samples],
-                    ynkt := y[start : start + window_size_samples],
-                    mode='full',
-                )
-                / (
-                    np.sqrt(np.dot(xnk, xnk) * np.dot(ynkt, ynkt))
-                    + epsilon  # Prevent division by zero
-                )
-            )[:num_lags]
-            for start in window_indexes
-        ]
+    cross_correlogram: NDArray = np.zeros(
+        (len(window_indexes), num_lags), dtype=np.float32
     )
+
+    for i, start in enumerate(window_indexes):
+        xnk = x[start : start + window_size_samples]
+        ynkt = y[start : start + window_size_samples]
+
+        correlation = (
+            np.correlate(xnk, ynkt, mode='full')
+            / (
+                np.sqrt(
+                    np.dot(xnk, xnk) * np.dot(ynkt, ynkt)
+                )  # normalize by energy of both signals
+                + epsilon  # Prevent division by zero
+            )
+        )[:num_lags]
+
+        cross_correlogram[i, : correlation.shape[0]] = correlation
 
     return cross_correlogram
 

@@ -42,7 +42,7 @@ class PlotTestCase(TestCase):
         self.assertTrue(True)
 
     def test_plot_correlogram(self):
-        fs = 16000  # 16 kHz sample rate
+        fs = 16000
         _sine_sweep = sine_sweep(
             start_freq_hz=20,
             end_freq_hz=8000,
