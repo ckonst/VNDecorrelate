@@ -122,6 +122,15 @@ class DecorrelationTestCase(TestCase):
         self.assertEqual(output_sig.shape[0], 1000)
         self.assertEqual(output_sig.shape[1], 2)
 
+    def test__velvet_noise_generated_once(self):
+        vnd = VelvetNoise(sample_rate_hz=44100, seed=1)
+        input_sig = np.zeros(1000)
+        vns_1 = vnd._velvet_noise
+        _ = vnd(input_sig)
+        _ = vnd.FIR
+        vns_2 = vnd.velvet_noise
+        self.assertTrue(np.array_equal(vns_1, vns_2))
+
     def test__haas_effect_decorrelation(self):
         input_sig_2 = np.zeros(435)
         haas = HaasEffect(sample_rate_hz=44100)

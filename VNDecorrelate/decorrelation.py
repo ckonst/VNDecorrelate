@@ -316,7 +316,9 @@ class _ParallelVelvetNoise:
         return sum(
             len(segment.negative_impulse_indexes)
             + len(segment.positive_impulse_indexes)
-            for channel in self.output_channels
+            for channel in self.output_channels[
+                0:1
+            ]  # all channels have the same number of impulses, so we can just check the first one.
             for segment in channel
         )
 
