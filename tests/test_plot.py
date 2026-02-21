@@ -4,7 +4,7 @@ import numpy as np
 import scipy.io.wavfile as wavfile
 from scipy import signal
 
-from VNDecorrelate.decorrelation import VelvetNoise
+from VNDecorrelate.decorrelation import SignalChain, VelvetNoise
 from VNDecorrelate.utils.dsp import cross_correlogram, generate_velvet_noise, sine_sweep
 from VNDecorrelate.utils.plot import plot_correlogram, plot_signal, plot_spectrogram
 
@@ -81,37 +81,37 @@ class PlotTestCase(TestCase):
         )
         self.assertTrue(True)
 
-    # def test_plot_correlogram__from_file(self):
-    #     fs, guitar = wavfile.read('audio/guitar.wav')
+    def test_plot_correlogram__from_file(self):
+        fs, guitar = wavfile.read('audio/guitar.wav')
 
-    #     chain = (
-    #         SignalChain(sample_rate_hz=fs)
-    #         .velvet_noise(
-    #             duration_seconds=0.03,
-    #             num_impulses=30,
-    #             seed=1,
-    #             use_log_distribution=True,
-    #         )
-    #         .haas_effect(
-    #             delay_time_seconds=0.02,
-    #             delayed_channel=1,
-    #             mode='LR',
-    #         )
-    #     )
+        chain = (
+            SignalChain(sample_rate_hz=fs)
+            .velvet_noise(
+                duration_seconds=0.03,
+                num_impulses=30,
+                seed=1,
+                use_log_distribution=True,
+            )
+            .haas_effect(
+                delay_time_seconds=0.02,
+                delayed_channel=1,
+                mode='LR',
+            )
+        )
 
-    #     output_sig = chain(guitar)
-    #     correlogram = cross_correlogram(
-    #         output_sig[:, 0],
-    #         output_sig[:, 1],
-    #         sample_rate_hz=fs,
-    #         max_lag_seconds=0.02,
-    #         window_size_seconds=0.02,
-    #         stride_seconds=0.01,
-    #     )
-    #     plot_correlogram(
-    #         correlogram,
-    #         lag_seconds=0.02,
-    #         time_seconds=9,
-    #         title='Guitar Output Cross Correlogram',
-    #     )
-    #     self.assertTrue(True)
+        output_sig = chain(guitar)
+        correlogram = cross_correlogram(
+            output_sig[:, 0],
+            output_sig[:, 1],
+            sample_rate_hz=fs,
+            max_lag_seconds=0.02,
+            window_size_seconds=0.02,
+            stride_seconds=0.01,
+        )
+        plot_correlogram(
+            correlogram,
+            lag_seconds=0.02,
+            time_seconds=9,
+            title='Guitar Output Cross Correlogram',
+        )
+        self.assertTrue(True)
