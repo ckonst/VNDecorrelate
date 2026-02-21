@@ -5,7 +5,7 @@ import scipy.io.wavfile as wavfile
 from scipy import signal
 
 from VNDecorrelate.decorrelation import SignalChain, VelvetNoise
-from VNDecorrelate.utils.dsp import cross_correlogram, sine_sweep
+from VNDecorrelate.utils.dsp import cross_correlogram, generate_velvet_noise, sine_sweep
 from VNDecorrelate.utils.plot import plot_correlogram, plot_signal, plot_spectrogram
 
 
@@ -19,10 +19,11 @@ class PlotTestCase(TestCase):
         sample_rate, sig_float32 = wavfile.read('audio/viola.wav')
         vnd = VelvetNoise(
             sample_rate_hz=sample_rate,
-            duration=0.03,
+            duration_seconds=0.03,
             num_impulses=30,
             num_outs=2,
             use_log_distribution=True,
+            seed=1,
         )
         result = vnd.decorrelate(sig_float32)
         vns = vnd.FIR
@@ -30,6 +31,18 @@ class PlotTestCase(TestCase):
         plot_signal(vns[:, 0], title='Velvet Noise Sequence L')
 
         plot_signal(vns[:, 1], title='Velvet Noise Sequence R')
+
+        fir = generate_velvet_noise(
+            sample_rate_hz=sample_rate,
+            duration_seconds=0.03,
+            num_impulses=30,
+            num_outs=2,
+            use_log_distribution=True,
+            seed=1,
+        )
+
+        plot_signal(fir[:, 0], title='Generated Velvet Noise Sequence L')
+        plot_signal(fir[:, 1], title='Generated Velvet Noise Sequence R')
 
         plot_signal(sig_float32, title='Input')
         plot_signal(result, title='Output')
@@ -74,7 +87,7 @@ class PlotTestCase(TestCase):
         chain = (
             SignalChain(sample_rate_hz=fs)
             .velvet_noise(
-                duration=0.03,
+                duration_seconds=0.03,
                 num_impulses=30,
                 seed=1,
                 use_log_distribution=True,

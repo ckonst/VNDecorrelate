@@ -286,7 +286,7 @@ class _VelvetNoiseSequence:
     segments: Sequence[_VelvetNoiseSegment] = field(default_factory=list)
 
     @classmethod
-    def _with(cls, *, num_segments: int) -> Self:
+    def create(cls, *, num_segments: int) -> Self:
         return cls(segments=[_VelvetNoiseSegment() for _ in range(num_segments)])
 
     def __iter__(self) -> Iterator[_VelvetNoiseSegment]:
@@ -304,10 +304,21 @@ class _ParallelVelvetNoise:
     """Dataclass for storing Velvet Noise Sequences for each output channel."""
 
     output_channels: Sequence[_VelvetNoiseSequence] = field(default_factory=list)
+    # Hold a reference to the FIR length in samples to determine when to regenerate the velvet noise sequence if the duration or sample rate is changed after initialization.
+    fir_length_samples: int
 
     @property
     def num_outs(self) -> int:
         return len(self.output_channels)
+
+    @property
+    def num_impluses(self) -> int:
+        return sum(
+            len(segment.negative_impulse_indexes)
+            + len(segment.positive_impulse_indexes)
+            for channel in self.output_channels
+            for segment in channel
+        )
 
     def __iter__(self) -> Iterator[_VelvetNoiseSequence]:
         return iter(self.output_channels)
@@ -323,9 +334,13 @@ class _ParallelVelvetNoise:
 class VelvetNoise(Decorrelator):
     """A `Velvet-Noise Decorrelator <http://www.dafx17.eca.ed.ac.uk/papers/DAFx17_paper_96.pdf>`__ for audio.
 
+    A Velvet Noise Sequence will be generated for each output channel on initialization,
+    modifying `duration_seconds`, `num_impulses`, `num_outs`, or `fir_length_samples`
+    will trigger a regeneration of the Velvet Noise Sequence on the next call to `velvet_noise`, `convolve`, or `decorrelate`.
+
     Attributes
     ----------
-        duration : float
+        duration_seconds : float
             The duration of the velvet noise sequence in seconds.
         num_impulses : int
             The total number of impulses in the velvet noise sequence.
@@ -337,7 +352,7 @@ class VelvetNoise(Decorrelator):
             The seed for the velvet noise generator.
     """
 
-    duration: float = 0.03
+    duration_seconds: float = 0.03
     num_impulses: int = 30
     segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2)
     use_log_distribution: bool = True
@@ -346,6 +361,19 @@ class VelvetNoise(Decorrelator):
     # _velvet_noise maps each channel to a list of equal length segments, determined by segment_envelope.
     # Each segment is then split into lists of negative and positive impulses at indices 0 and 1 respectively.
     _velvet_noise: _ParallelVelvetNoise = ...
+
+    @property
+    def velvet_noise(self) -> _ParallelVelvetNoise:
+        """The generated velvet noise sequence for each output channel, stored as a dataclass."""
+        # Regenerate if duration, num_impulses, num_outs, or fir_length_samples is changed after initialization,
+        # since these are the only parameters that affect the velvet noise sequence.
+        if (
+            self.num_outs != self._velvet_noise.num_outs
+            or self.num_impulses != self._velvet_noise.num_impluses
+            or self.fir_length_samples != self._velvet_noise.fir_length_samples
+        ):
+            self._velvet_noise = self._generate()
+        return self._velvet_noise
 
     def __post_init__(self) -> None:
         if self.num_impulses > self.fir_length_samples * 0.5:
@@ -362,7 +390,7 @@ class VelvetNoise(Decorrelator):
         segment_buffer = np.zeros(sig_len, dtype=np.float32)
         output_sig = np.zeros((sig_len, self.num_outs), dtype=np.float32)
 
-        for channel_index, channel_segments in enumerate(self._velvet_noise):
+        for channel_index, channel_segments in enumerate(self.velvet_noise):
             for segment_index, segment in enumerate(channel_segments):
                 for signed_indexes, operator in segment:
                     for impulse_index in signed_indexes:
@@ -372,7 +400,8 @@ class VelvetNoise(Decorrelator):
                             ],  # Map impulse_index 0 to sig_len to conform to python indexing rules.
                             operator,
                         )(input_sig[:, channel_index][impulse_index:])
-                segment_buffer *= self.segment_envelope[segment_index]
+                if self.segment_envelope:
+                    segment_buffer *= self.segment_envelope[segment_index]
                 output_sig[:, channel_index] += segment_buffer
                 segment_buffer.fill(0)
         return output_sig
@@ -392,23 +421,24 @@ class VelvetNoise(Decorrelator):
             input_sig = mono_to_stereo(input_sig)
 
         output_sig = self.convolve(input_sig)
-
         output_sig = encode_signal_to_side_channel(input_sig, output_sig)
+
         if self.width is not None:
             output_sig = apply_stereo_width(output_sig, self.width)
 
         rms_normalize(input_sig, output_sig)
+
         return output_sig
 
     @property
     def density(self) -> float:
-        """The average density in impulses per second. Homogenous across all channels."""
-        return self.num_impulses / self.duration
+        """The average density in impulses per second. Homogeneous across all channels."""
+        return self.num_impulses / self.duration_seconds
 
     @property
     def fir_length_samples(self) -> int:
-        """The length of the finite impulse response in samples. Homogenous across all channels."""
-        return int(round(self.sample_rate_hz * self.duration))
+        """The length of the finite impulse response in samples. Homogeneous across all channels."""
+        return int(round(self.sample_rate_hz * self.duration_seconds))
 
     @property
     def FIR(self) -> NDArray:
@@ -418,7 +448,7 @@ class VelvetNoise(Decorrelator):
             [[] for _ in range(self.num_outs)],
             [[] for _ in range(self.num_outs)],
         )
-        for channel_index, channel_segments in enumerate(self._velvet_noise):
+        for channel_index, channel_segments in enumerate(self.velvet_noise):
             for segment_index, segment in enumerate(channel_segments):
                 for (signed_indexes, _), sign in zip(segment, [-1, 1]):
                     for impulse_index in signed_indexes:
@@ -430,7 +460,7 @@ class VelvetNoise(Decorrelator):
         return fir
 
     def _generate(self) -> _ParallelVelvetNoise:
-        """Generate a velvet noise finite impulse response filter to convolve with an input signal.
+        """Generate a velvet noise Finite Impulse Response (FIR) filter to convolve with an input signal.
 
         To avoid audible smearing of transients the following are optionally applied:
             - A segmented decay envelope.
@@ -442,8 +472,10 @@ class VelvetNoise(Decorrelator):
         if self.seed is not None:
             np.random.seed(self.seed)
 
-        velvet_noise = _ParallelVelvetNoise()
-        num_segments = len(self.segment_envelope)
+        velvet_noise = _ParallelVelvetNoise(fir_length_samples=self.fir_length_samples)
+        num_segments = max(
+            len(self.segment_envelope), 1
+        )  # If segment_envelope is empty, use a single segment with no decay.
 
         # average number of samples between two impulses
         impulse_interval = self.sample_rate_hz / self.density
@@ -486,7 +518,7 @@ class VelvetNoise(Decorrelator):
                 )
             )
 
-            sequence = _VelvetNoiseSequence._with(num_segments=num_segments)
+            sequence = _VelvetNoiseSequence.create(num_segments=num_segments)
 
             for impulse_index in range(self.num_impulses):
                 segment_index = int(impulse_index / (self.num_impulses / num_segments))

@@ -161,4 +161,4 @@ class DSPTestCase(TestCase):
         self.assertTrue(
             ccg.shape[0] == 199
         )  # 199 windows for a 2s signal at 10ms stride
-        self.assertTrue(ccg.shape[1] == 639)  # 639 lags for ±5 ms at 16 kHz
+        self.assertTrue(ccg.shape[1] == 1601)  # 1601 lags for +/- 50ms at 16kHz
