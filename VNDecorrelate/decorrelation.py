@@ -387,17 +387,11 @@ class VelvetNoise(Decorrelator):
             )
         self._velvet_noise = self._generate()
 
-    def _apply_envelope(self, segment_buffer: NDArray, segment_index: int) -> None:
-        segment_buffer *= self.segment_envelope[segment_index]
-
     def convolve(self, input_sig: NDArray) -> NDArray:
         """Perform the optimized convolution of the velvet noise filters onto each channel of a signal."""
         sig_len = len(input_sig)
         segment_buffer = np.zeros(sig_len, dtype=np.float32)
         output_sig = np.zeros((sig_len, self.num_outs), dtype=np.float32)
-        apply_envelope = (
-            self._apply_envelope if self.segment_envelope else lambda *_: None
-        )
 
         for channel_index, channel_segments in enumerate(self.velvet_noise):
             for segment_index, segment in enumerate(channel_segments):
@@ -408,7 +402,8 @@ class VelvetNoise(Decorrelator):
                             segment_buffer[: -impulse_index or sig_len],
                             operator,  # either __isub__ or __iadd__
                         )(input_sig[impulse_index:, channel_index])
-                apply_envelope(segment_buffer, segment_index)
+                if self.segment_envelope:
+                    segment_buffer *= self.segment_envelope[segment_index]
                 output_sig[:, channel_index] += segment_buffer
                 segment_buffer.fill(0)
         return output_sig

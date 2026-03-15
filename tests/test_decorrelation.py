@@ -117,13 +117,12 @@ class DecorrelationTestCase(TestCase):
         self.assertEqual(output_sig.shape[0], 1000)
         self.assertEqual(output_sig.shape[1], 2)
 
-        vnd = VelvetNoise(
-            num_impulses=15,
-            duration_seconds=0.5,
-            sample_rate_hz=44100,
-            segment_envelope=(),
-        )
-        input_sig = np.zeros(1000)
+        vnd.segment_envelope = ()
+        output_sig = vnd(input_sig)
+        self.assertEqual(output_sig.shape[0], 1000)
+        self.assertEqual(output_sig.shape[1], 2)
+
+        vnd.segment_envelope = [1.0] * 1000
         output_sig = vnd(input_sig)
         self.assertEqual(output_sig.shape[0], 1000)
         self.assertEqual(output_sig.shape[1], 2)
@@ -145,7 +144,7 @@ class DecorrelationTestCase(TestCase):
         self.assertEqual(output_sig_2.shape[1], 2)
 
     def test__convolve_velvet_noise_equality(self):
-        input_sig = np.random.random((1000, 2))
+        input_sig = np.random.random((10000, 2))
         output_sig_1 = convolve_velvet_noise(
             input_sig,
             generate_velvet_noise(
