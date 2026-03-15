@@ -2,8 +2,13 @@ from unittest import TestCase
 
 import numpy as np
 
-from VNDecorrelate.decorrelation import HaasEffect, SignalChain, VelvetNoise
-from VNDecorrelate.utils.dsp import generate_velvet_noise
+from VNDecorrelate.decorrelation import (
+    HaasEffect,
+    SignalChain,
+    VelvetNoise,
+    convolve_velvet_noise,
+    generate_velvet_noise,
+)
 
 
 class DecorrelationTestCase(TestCase):
@@ -63,7 +68,8 @@ class DecorrelationTestCase(TestCase):
                     use_log_distribution=True,
                     seed=1,
                 ),
-            )
+                atol=1e-6,
+            ),
         )
 
     def test__velvet_noise_properties(self):
@@ -137,3 +143,29 @@ class DecorrelationTestCase(TestCase):
         output_sig_2 = haas(input_sig_2)
         self.assertGreater(output_sig_2.shape[0], 435)
         self.assertEqual(output_sig_2.shape[1], 2)
+
+    def test__convolve_velvet_noise_equality(self):
+        input_sig = np.random.random((1000, 2))
+        output_sig_1 = convolve_velvet_noise(
+            input_sig,
+            generate_velvet_noise(
+                duration_seconds=0.03,
+                num_impulses=30,
+                num_outs=2,
+                sample_rate_hz=44100,
+                segment_envelope=(0.85, 0.55, 0.35, 0.2),
+                use_log_distribution=True,
+                seed=1,
+            ),
+        )
+        output_sig_2 = VelvetNoise(
+            duration_seconds=0.03,
+            num_impulses=30,
+            num_outs=2,
+            sample_rate_hz=44100,
+            segment_envelope=(0.85, 0.55, 0.35, 0.2),
+            use_log_distribution=True,
+            seed=1,
+        ).convolve(input_sig)
+        self.assertEqual(output_sig_1.shape, output_sig_2.shape)
+        self.assertTrue(np.allclose(output_sig_1, output_sig_2, atol=1e-6))

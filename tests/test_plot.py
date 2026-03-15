@@ -4,8 +4,8 @@ import numpy as np
 import scipy.io.wavfile as wavfile
 from scipy import signal
 
-from VNDecorrelate.decorrelation import SignalChain, VelvetNoise
-from VNDecorrelate.utils.dsp import cross_correlogram, generate_velvet_noise, sine_sweep
+from VNDecorrelate.decorrelation import SignalChain, VelvetNoise, generate_velvet_noise
+from VNDecorrelate.utils.dsp import cross_correlogram, sine_sweep
 from VNDecorrelate.utils.plot import plot_correlogram, plot_signal, plot_spectrogram
 
 

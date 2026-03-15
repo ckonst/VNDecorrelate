@@ -54,6 +54,7 @@ class DSPTestCase(TestCase):
         self.assertEqual(dsp.to_float32(x).dtype, np.float32)
         x = np.array([1, 2, 3, 4], dtype=np.float32)
         self.assertEqual(dsp.to_float32(x).dtype, np.float32)
+        self.assertTrue(dsp.to_float32(x) is x)
 
     def test_peak_normalize(self):
         x1 = np.random.normal(loc=0.0, scale=100.0, size=(100, 100))

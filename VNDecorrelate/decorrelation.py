@@ -10,6 +10,7 @@ from VNDecorrelate.utils.dsp import (
     LR_to_MS,
     MS_to_LR,
     apply_stereo_width,
+    check_equal_length,
     encode_signal_to_side_channel,
     log_distribution,
     mono_to_stereo,
@@ -304,7 +305,7 @@ class _ParallelVelvetNoise:
     """Dataclass for storing Velvet Noise Sequences for each output channel."""
 
     output_channels: Sequence[_VelvetNoiseSequence] = field(default_factory=list)
-    # Hold a reference to the FIR length in samples to determine when to regenerate the velvet noise sequence if the duration or sample rate is changed after initialization.
+    # Store the FIR length to determine if the velvet noise sequence needs to be regenerated in case it changes after initialization.
     fir_length_samples: int
 
     @property
@@ -530,3 +531,116 @@ class VelvetNoise(Decorrelator):
             velvet_noise.output_channels.append(sequence)
 
         return velvet_noise
+
+
+def generate_velvet_noise(
+    *,
+    duration_seconds: float,
+    num_impulses: int,
+    num_outs: int = 2,
+    sample_rate_hz: int = 44100,
+    segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2),
+    use_log_distribution: bool = True,
+    seed: int | None = None,
+) -> NDArray:
+    """More performant alternative to `VelvetNoise.FIR` for generating a velvet noise FIR filter as an NDArray.
+
+    Generate a velvet noise Finite Impulse Response (FIR) filter to convolve with an input signal.
+
+    To avoid audible smearing of transients the following are optionally applied:
+        - A segmented decay envelope.
+        - Logarithmic impulse distribution.
+    Segmented decay is preferred to exponential decay because it uses
+    less multiplication, and produces satisfactory results.
+
+    To convolve after calling this function, you must use `convolve_velvet_noise`.
+    For batch processing or long audio files `VelvetNoise` will usually be more performant.
+
+    """
+    if seed is not None:
+        np.random.seed(seed)
+
+    fir_length_samples = int(duration_seconds * sample_rate_hz)
+
+    velvet_noise = np.zeros((fir_length_samples, num_outs), dtype=np.float32)
+    num_segments = max(
+        len(segment_envelope), 1
+    )  # If segment_envelope is empty, use a single segment with no decay.
+
+    # average number of samples between two impulses
+    impulse_interval = sample_rate_hz / (num_impulses / duration_seconds)
+
+    # number of samples between each logarithimcally distributed impulse
+    log_impulse_intervals = 10.0 ** (2 * (np.arange(num_impulses + 1) / num_impulses))
+
+    cumsum_log_impulse_intervals = np.cumsum(log_impulse_intervals)
+
+    cumsum_log_impulse_intervals = cumsum_log_impulse_intervals[:-1] * (
+        fir_length_samples / cumsum_log_impulse_intervals[-1]
+    )
+
+    impulse_sign_rng = np.random.uniform(
+        low=0,
+        high=1,
+        size=(num_impulses, num_outs),
+    )
+    impulse_offset_rng = np.random.uniform(
+        low=0,
+        high=1,
+        size=(num_impulses, num_outs),
+    )
+    signs = (2 * np.round(impulse_sign_rng)) - 1
+
+    for channel_index in range(num_outs):
+        fir_indexes = (
+            log_distribution(
+                impulse_offset_rng[:, channel_index],
+                log_impulse_intervals,
+                cumsum_log_impulse_intervals,
+            )
+            if use_log_distribution
+            else uniform_density(
+                impulse_offset_rng[:, channel_index],
+                np.arange(num_impulses),
+                impulse_interval,
+            )
+        )
+
+        for impulse_index in range(num_impulses):
+            segment_index = int(impulse_index / (num_impulses / num_segments))
+            velvet_noise[fir_indexes[impulse_index], channel_index] = (
+                signs[impulse_index, channel_index] * segment_envelope[segment_index]
+            )
+
+    return velvet_noise
+
+
+def convolve_velvet_noise(input_sig: NDArray, velvet_noise_filters: NDArray) -> NDArray:
+    """Simple, stateless, but less performant alternative to `VelvetNoise.convolve()` for convolving velvet noise filters.
+    `input_sig` is an `NDArray` of shape (n, num_channels) and `velvet_noise_filters` is an `NDArray` of shape (m, num_channels).
+    A `ValueError` is raised if the number of channels differs between `input_sig` and `velvet_noise_filters`.
+
+    `velvet_noise_filters` may also be assigned from `VelvetNoise.FIR`. If `generate_velvet_noise` was used, then this function must be used for convolution.
+    While this convolution is optimized to take advantage of the sparseness of the velvet noise, it is generally slower due to more memory allocations.
+    """
+    num_channels = 1 if input_sig.ndim == 1 else input_sig.shape[1]
+
+    if num_channels > 1:
+        check_equal_length(input_sig, velvet_noise_filters, dim=1)
+
+    sig_len = len(input_sig)
+
+    output_sig = np.zeros(input_sig.shape, dtype=np.float32)
+
+    for channel_index in range(num_channels):
+        velvet_noise = velvet_noise_filters[:, channel_index]
+        for index, value in zip(
+            *np.where(velvet_noise != 0.0),
+            velvet_noise[velvet_noise != 0.0],
+        ):
+            # Map index 0 to sig_len to conform to python indexing rules.
+            output_sig[:, channel_index][: -index or sig_len] += (
+                input_sig[:, channel_index][index:] * value
+            )
+
+    return output_sig

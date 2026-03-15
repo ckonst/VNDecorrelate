@@ -1,5 +1,3 @@
-from typing import Sequence
-
 import numpy as np
 from numpy.typing import NDArray
 
@@ -65,7 +63,7 @@ def encode_signal_to_side_channel(
 
 def to_float32(input_sig: NDArray) -> NDArray[np.float32]:
     """Return input_sig as an array of 32 bit floats."""
-    return input_sig.astype(np.float32) if input_sig.dtype != np.float32 else input_sig
+    return input_sig.astype(np.float32, copy=False)
 
 
 def peak_normalize(input_sig: NDArray, epsilon: float = EPSILON) -> None:
@@ -185,11 +183,11 @@ def check_stereo(input_sig: NDArray) -> None:
         )
 
 
-def check_equal_length(x: NDArray, y: NDArray) -> None:
-    """If the input signals do not have equal length, raise an error."""
-    if x.shape[0] != y.shape[0]:
+def check_equal_length(x: NDArray, y: NDArray, dim: int = 0) -> None:
+    """If the input signals do not have equal length for the specified dimension, raise an error."""
+    if x.shape[dim] != y.shape[dim]:
         raise ValueError(
-            f'Input length mismatch: Expected signals of equal length, but got lengths {x.shape[0]} and {y.shape[0]}.'
+            f'Input length mismatch: Expected signals of equal length, but got lengths {x.shape[dim]} and {y.shape[dim]} for dimension {dim}.'
         )
 
 
@@ -252,83 +250,3 @@ def sine_sweep(
     k = np.log(end_freq_hz / start_freq_hz) / duration_seconds
     sine_sweep = np.sin(2 * np.pi * start_freq_hz * (np.exp(k * t) - 1) / k)
     return sine_sweep.astype(np.float32)
-
-
-def generate_velvet_noise(
-    *,
-    duration_seconds: float,
-    num_impulses: int,
-    num_outs: int = 2,
-    sample_rate_hz: int = 44100,
-    segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2),
-    use_log_distribution: bool = True,
-    seed: int | None = None,
-) -> NDArray:
-    """More performant alternative to `VelvetNoise.FIR` for generating a velvet noise FIR filter as an NDArray.
-    Optimized convolutions should still be performed with `VelvetNoise.decorrelate` to take advantage of the sparsity of the FIR filter.
-
-    Generate a velvet noise Finite Impulse Response (FIR) filter to convolve with an input signal.
-
-    To avoid audible smearing of transients the following are optionally applied:
-        - A segmented decay envelope.
-        - Logarithmic impulse distribution.
-    Segmented decay is preferred to exponential decay because it uses
-    less multiplication, and produces satisfactory results.
-
-    """
-    if seed is not None:
-        np.random.seed(seed)
-
-    fir_length_samples = int(duration_seconds * sample_rate_hz)
-
-    velvet_noise = np.zeros((fir_length_samples, num_outs), dtype=np.float32)
-    num_segments = max(
-        len(segment_envelope), 1
-    )  # If segment_envelope is empty, use a single segment with no decay.
-
-    # average number of samples between two impulses
-    impulse_interval = sample_rate_hz / (num_impulses / duration_seconds)
-
-    # number of samples between each logarithimcally distributed impulse
-    log_impulse_intervals = 10.0 ** (2 * (np.arange(num_impulses + 1) / num_impulses))
-
-    cumsum_log_impulse_intervals = np.cumsum(log_impulse_intervals)
-
-    cumsum_log_impulse_intervals = cumsum_log_impulse_intervals[:-1] * (
-        fir_length_samples / cumsum_log_impulse_intervals[-1]
-    )
-
-    impulse_sign_rng = np.random.uniform(
-        low=0,
-        high=1,
-        size=(num_impulses, num_outs),
-    )
-    impulse_offset_rng = np.random.uniform(
-        low=0,
-        high=1,
-        size=(num_impulses, num_outs),
-    )
-    signs = (2 * np.round(impulse_sign_rng)) - 1
-
-    for channel_index in range(num_outs):
-        fir_indexes = (
-            log_distribution(
-                impulse_offset_rng[:, channel_index],
-                log_impulse_intervals,
-                cumsum_log_impulse_intervals,
-            )
-            if use_log_distribution
-            else uniform_density(
-                impulse_offset_rng[:, channel_index],
-                np.arange(num_impulses),
-                impulse_interval,
-            )
-        )
-
-        for impulse_index in range(num_impulses):
-            segment_index = int(impulse_index / (num_impulses / num_segments))
-            velvet_noise[fir_indexes[impulse_index], channel_index] = (
-                signs[impulse_index, channel_index] * segment_envelope[segment_index]
-            )
-
-    return velvet_noise
