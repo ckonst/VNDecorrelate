@@ -6,12 +6,20 @@ from VNDecorrelate.decorrelation import (
     HaasEffect,
     SignalChain,
     VelvetNoise,
+    WhiteNoise,
     convolve_velvet_noise,
     generate_velvet_noise,
 )
 
 
 class DecorrelationTestCase(TestCase):
+    def test__haas_effect_decorrelation(self):
+        input_sig = np.zeros(435)
+        haas = HaasEffect(sample_rate_hz=44100)
+        output_sig = haas(input_sig)
+        self.assertGreater(output_sig.shape[0], 435)
+        self.assertEqual(output_sig.shape[1], 2)
+
     def test__heterogeneous_signal_chain(self):
         fs = 44100
         input_sig = np.zeros(1000)
@@ -20,7 +28,7 @@ class DecorrelationTestCase(TestCase):
             .velvet_noise(
                 duration_seconds=0.03,
                 num_impulses=30,
-                width=1.0,
+                width=0.5,
             )
             .haas_effect(
                 delay_time_seconds=0.0197,
@@ -32,6 +40,7 @@ class DecorrelationTestCase(TestCase):
                 delayed_channel=1,
                 mode='MS',
             )
+            .white_noise(duration_seconds=0.03, width=0.5)
         )
         output_sig = chain(input_sig)
         self.assertGreater(output_sig.shape[0], 1000)
@@ -136,13 +145,6 @@ class DecorrelationTestCase(TestCase):
         vns_2 = vnd.velvet_noise
         self.assertTrue(np.array_equal(vns_1, vns_2))
 
-    def test__haas_effect_decorrelation(self):
-        input_sig_2 = np.zeros(435)
-        haas = HaasEffect(sample_rate_hz=44100)
-        output_sig_2 = haas(input_sig_2)
-        self.assertGreater(output_sig_2.shape[0], 435)
-        self.assertEqual(output_sig_2.shape[1], 2)
-
     def test__convolve_velvet_noise_equality(self):
         input_sig = np.random.random((10000, 2))
         output_sig_1 = convolve_velvet_noise(
@@ -168,3 +170,11 @@ class DecorrelationTestCase(TestCase):
         ).convolve(input_sig)
         self.assertEqual(output_sig_1.shape, output_sig_2.shape)
         self.assertTrue(np.allclose(output_sig_1, output_sig_2, atol=1e-6))
+
+    def test__white_noise_decorrelation(self):
+        input_sig = np.random.random(4350)
+        output_sig = WhiteNoise(sample_rate_hz=44100, duration_seconds=0.03, num_ins=1)(
+            input_sig
+        )
+        self.assertEqual(output_sig.shape[0], 4350)
+        self.assertEqual(output_sig.shape[1], 2)

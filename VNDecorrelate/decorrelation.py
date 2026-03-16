@@ -85,12 +85,16 @@ class SignalChain(SignalProcessor):
         if not self.lazy:
             self._hot = True
 
+    def haas_effect(self, **kwargs) -> Self:
+        self._add_decorrelator(HaasEffect, **kwargs)
+        return self
+
     def velvet_noise(self, **kwargs) -> Self:
         self._add_decorrelator(VelvetNoise, **kwargs)
         return self
 
-    def haas_effect(self, **kwargs) -> Self:
-        self._add_decorrelator(HaasEffect, **kwargs)
+    def white_noise(self, **kwargs) -> Self:
+        self._add_decorrelator(WhiteNoise, **kwargs)
         return self
 
     def _add_decorrelator(self, cls: type[Decorrelator], **kwargs) -> None:
@@ -178,7 +182,7 @@ class HaasEffect(Decorrelator):
         delay_time_seconds : float
             The time in seconds to delay the channel by.
         mode : HaasEffectMode
-            If set to MS, then the input channels will be converted to Mid-Side As though they were Left-Right, even if they're not!
+            If set to MS, then the input channels will be converted to Mid-Side as though they were Left-Right, even if they're not.
 
     """
 
@@ -444,7 +448,7 @@ class VelvetNoise(Decorrelator):
 
     @property
     def FIR(self) -> NDArray:
-        """Return the finite impulse responses (for each channel) as a numpy array of shape (filter_len, num_outs)."""
+        """Return the finite impulse responses (for each channel) as a numpy array of shape (fir_length_samples, num_outs)."""
         fir = np.zeros((self.fir_length_samples, self.num_outs))
         indexes, values = (
             [[] for _ in range(self.num_outs)],
@@ -643,3 +647,62 @@ def convolve_velvet_noise(input_sig: NDArray, velvet_noise_filters: NDArray) -> 
             )
 
     return output_sig
+
+
+# ----------------------------------------------------------------------------
+#
+# White Noise Decorrelator
+#
+# ----------------------------------------------------------------------------
+
+
+@dataclass(kw_only=True, slots=True)
+class WhiteNoise(Decorrelator):
+    duration_seconds: int = 0.03
+    seed: int | None = None
+
+    _white_noise_filter: NDArray = ...
+
+    def __post_init__(self) -> None:
+        if self.seed is not None:
+            np.random.seed(self.seed)
+
+        self.white_noise_filter = np.random.random(
+            (self.fir_length_samples, self.num_outs)
+        )
+
+    def decorrelate(self, input_sig: NDArray) -> NDArray:
+        input_sig = to_float32(input_sig)
+
+        if input_sig.ndim == 1:
+            input_sig = mono_to_stereo(input_sig)
+
+        sig_len = len(input_sig)
+
+        output_sig = np.zeros((sig_len, self.num_outs), dtype=np.float32)
+
+        for channel_index in range(self.num_outs):
+            output_sig[:, channel_index] = np.convolve(
+                input_sig[:, channel_index],
+                self.white_noise_filter[:, channel_index],
+                mode='same',
+            )
+
+        output_sig = encode_signal_to_side_channel(input_sig, output_sig)
+
+        if self.width is not None:
+            output_sig = apply_stereo_width(output_sig, self.width)
+
+        rms_normalize(input_sig, output_sig)
+
+        return output_sig
+
+    @property
+    def fir_length_samples(self) -> int:
+        """The length of the finite impulse response in samples. Homogeneous across all channels."""
+        return int(round(self.sample_rate_hz * self.duration_seconds))
+
+    @property
+    def FIR(self) -> NDArray:
+        """Return the finite impulse responses (for each channel) as a numpy array of shape (fir_length_samples, num_outs)."""
+        return self._white_noise_filter
