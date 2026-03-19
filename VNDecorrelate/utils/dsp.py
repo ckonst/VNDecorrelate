@@ -1,7 +1,14 @@
+from enum import StrEnum
+
 import numpy as np
 from numpy.typing import NDArray
 
 EPSILON = 1e-10
+
+
+class NormalizeMode(StrEnum):
+    STEREO = 'stereo'
+    DUAL_MONO = 'dual_mono'
 
 
 def apply_stereo_width(input_sig: NDArray, width: float) -> NDArray:
@@ -66,17 +73,44 @@ def to_float32(input_sig: NDArray) -> NDArray[np.float32]:
     return input_sig.astype(np.float32, copy=False)
 
 
-def peak_normalize(input_sig: NDArray, epsilon: float = EPSILON) -> None:
+def peak_normalize(
+    input_sig: NDArray,
+    mode: NormalizeMode = NormalizeMode.DUAL_MONO,
+    epsilon: float = EPSILON,
+) -> None:
     """Normalize input_sig in-place to [-1, 1] using the calculated peaks."""
-    input_sig *= 1.0 / (np.max(np.abs(input_sig)) + epsilon)
+
+    match (input_sig.ndim, mode):
+        case (1, _) | (_, NormalizeMode.STEREO):
+            input_axis = None
+        case (_, NormalizeMode.DUAL_MONO):
+            input_axis = 0
+
+    input_sig *= 1.0 / (np.max(np.abs(input_sig), axis=input_axis) + epsilon)
 
 
 def rms_normalize(
-    input_sig: NDArray, output_sig: NDArray, epsilon: float = EPSILON
+    input_sig: NDArray,
+    output_sig: NDArray,
+    mode: NormalizeMode = NormalizeMode.DUAL_MONO,
+    epsilon: float = EPSILON,
 ) -> None:
     """Normalize output_sig in-place to the rms value of input_sig."""
-    output_sig *= np.sqrt(np.mean(np.square(input_sig))) / np.sqrt(
-        np.mean(np.square(np.sum(output_sig, axis=1))) + epsilon
+
+    match (input_sig.ndim, mode):
+        case (1, _) | (_, NormalizeMode.STEREO):
+            input_axis = None
+        case (_, NormalizeMode.DUAL_MONO):
+            input_axis = 0
+
+    match (output_sig.ndim, mode):
+        case (1, _) | (_, NormalizeMode.STEREO):
+            output_axis = None
+        case (_, NormalizeMode.DUAL_MONO):
+            output_axis = 0
+
+    output_sig *= np.sqrt(np.mean(np.square(input_sig), axis=input_axis)) / np.sqrt(
+        np.mean(np.square(output_sig), axis=output_axis) + epsilon
     )
 
 
