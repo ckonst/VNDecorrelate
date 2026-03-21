@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import StrEnum
+from functools import partial
 from typing import Any, Callable, Iterator, Protocol, Self, Sequence
 
 import numpy as np
@@ -53,6 +54,11 @@ class Decorrelator(ABC, SignalProcessor):
         return self.decorrelate(input_sig)
 
 
+class StatelessDecorrelator(Protocol):
+    def __call__(self, input_sig: NDArray, **kwargs) -> NDArray:
+        raise NotImplementedError
+
+
 # ----------------------------------------------------------------------------
 #
 # Signal Chain Class
@@ -94,18 +100,29 @@ class SignalChain(SignalProcessor):
         self._add_decorrelator(WhiteNoise, **kwargs)
         return self
 
+    def stateless(self, function: StatelessDecorrelator, *args, **kwargs):
+        self._decorrelators.append(
+            lambda: partial(function, *args, **kwargs)
+            if self._hot
+            else partial(function, *args, **kwargs)
+        )
+        return self
+
     def _add_decorrelator(self, cls: type[Decorrelator], **kwargs) -> None:
         kwargs = self._validate(cls, **kwargs)
         self._decorrelators.append(
-            lambda _: cls(
+            cls(
+                sample_rate_hz=self.sample_rate_hz,
+                num_outs=kwargs.get('num_outs', self.num_outs),
+                **kwargs,
+            )
+            if self._hot
+            else lambda: cls(
                 sample_rate_hz=self.sample_rate_hz,
                 num_outs=kwargs.get('num_outs', self.num_outs),
                 **kwargs,
             ),
         )
-        if self._hot:
-            # Construct the decorrelator immediately if we're hot loading.
-            self._decorrelators[-1] = self._decorrelators[-1]()
 
     def _validate(
         self, cls, *, sample_rate_hz: int | None = None, **kwargs
@@ -130,7 +147,7 @@ class SignalChain(SignalProcessor):
             return
 
         for i, decorralator in enumerate(self._decorrelators):
-            self._decorrelators[i] = decorralator(i - 1)
+            self._decorrelators[i] = decorralator()
 
         self._hot = True
 
@@ -652,8 +669,8 @@ class WhiteNoise(Decorrelator):
         if self.seed is not None:
             np.random.seed(self.seed)
 
-        self.white_noise_filter = np.random.random(
-            (self.fir_length_samples, self.num_outs)
+        self.white_noise_filter = np.random.normal(
+            loc=0, scale=1, size=(self.fir_length_samples, self.num_outs)
         )
 
     def decorrelate(self, input_sig: NDArray) -> NDArray:

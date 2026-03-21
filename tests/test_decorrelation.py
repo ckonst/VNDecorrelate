@@ -41,6 +41,10 @@ class DecorrelationTestCase(TestCase):
                 mode='MS',
             )
             .white_noise(duration_seconds=0.03, width=0.5)
+            .stateless(
+                convolve_velvet_noise,
+                generate_velvet_noise(duration_seconds=0.03, num_impulses=30),
+            )
         )
         output_sig = chain(input_sig)
         self.assertGreater(output_sig.shape[0], 1000)
