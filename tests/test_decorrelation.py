@@ -69,21 +69,19 @@ class DecorrelationTestCase(TestCase):
             use_log_distribution=True,
             seed=1,
         )
-        self.assertTrue(
-            np.allclose(
-                vnd.FIR,
-                generate_velvet_noise(
-                    duration_seconds=0.03,
-                    num_impulses=30,
-                    num_outs=2,
-                    sample_rate_hz=44100,
-                    segment_envelope=(0.85, 0.55, 0.35, 0.2),
-                    use_log_distribution=True,
-                    seed=1,
-                ),
-                atol=1e-6,
+        FIR = (
+            generate_velvet_noise(
+                duration_seconds=0.03,
+                num_impulses=30,
+                num_outs=2,
+                sample_rate_hz=44100,
+                segment_envelope=(0.85, 0.55, 0.35, 0.2),
+                use_log_distribution=True,
+                seed=1,
             ),
         )
+
+        self.assertTrue(np.allclose(vnd.FIR, FIR, atol=1e-6))
 
     def test__velvet_noise_properties(self):
         fs = 44100

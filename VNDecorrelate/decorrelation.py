@@ -477,8 +477,7 @@ class VelvetNoise(Decorrelator):
         less multiplication, and produces satisfactory results.
 
         """
-        if self.seed is not None:
-            np.random.seed(self.seed)
+        rng = np.random.default_rng(self.seed)
 
         velvet_noise = _ParallelVelvetNoise(fir_length_samples=self.fir_length_samples)
         num_segments = max(
@@ -499,28 +498,28 @@ class VelvetNoise(Decorrelator):
             self.fir_length_samples / cumsum_log_impulse_intervals[-1]
         )
 
-        impulse_sign_rng = np.random.uniform(
+        impulse_signs = rng.uniform(
             low=0,
             high=1,
             size=(self.num_impulses, self.num_outs),
         )
-        impulse_offset_rng = np.random.uniform(
+        impulse_offsets = rng.uniform(
             low=0,
             high=1,
             size=(self.num_impulses, self.num_outs),
         )
-        signs = (2 * np.round(impulse_sign_rng)) - 1
+        signs = (2 * np.round(impulse_signs)) - 1
 
         for channel_index in range(self.num_outs):
             fir_indexes = (
                 log_distribution(
-                    impulse_offset_rng[:, channel_index],
+                    impulse_offsets[:, channel_index],
                     log_impulse_intervals,
                     cumsum_log_impulse_intervals,
                 )
                 if self.use_log_distribution
                 else uniform_density(
-                    impulse_offset_rng[:, channel_index],
+                    impulse_offsets[:, channel_index],
                     np.arange(self.num_impulses),
                     impulse_interval,
                 )
@@ -562,8 +561,7 @@ def generate_velvet_noise(
     For batch processing or long audio files `VelvetNoise` will usually be more performant.
 
     """
-    if seed is not None:
-        np.random.seed(seed)
+    rng = np.random.default_rng(seed)
 
     fir_length_samples = int(duration_seconds * sample_rate_hz)
 
@@ -584,28 +582,28 @@ def generate_velvet_noise(
         fir_length_samples / cumsum_log_impulse_intervals[-1]
     )
 
-    impulse_sign_rng = np.random.uniform(
+    impulse_signs = rng.uniform(
         low=0,
         high=1,
         size=(num_impulses, num_outs),
     )
-    impulse_offset_rng = np.random.uniform(
+    impulse_offsets = rng.uniform(
         low=0,
         high=1,
         size=(num_impulses, num_outs),
     )
-    signs = (2 * np.round(impulse_sign_rng)) - 1
+    signs = (2 * np.round(impulse_signs)) - 1
 
     for channel_index in range(num_outs):
         fir_indexes = (
             log_distribution(
-                impulse_offset_rng[:, channel_index],
+                impulse_offsets[:, channel_index],
                 log_impulse_intervals,
                 cumsum_log_impulse_intervals,
             )
             if use_log_distribution
             else uniform_density(
-                impulse_offset_rng[:, channel_index],
+                impulse_offsets[:, channel_index],
                 np.arange(num_impulses),
                 impulse_interval,
             )
@@ -668,10 +666,9 @@ class WhiteNoise(Decorrelator):
     _white_noise_filter: NDArray = ...
 
     def __post_init__(self) -> None:
-        if self.seed is not None:
-            np.random.seed(self.seed)
+        rng = np.random.default_rng(self.seed)
 
-        self.white_noise_filter = np.random.normal(
+        self.white_noise_filter = rng.normal(
             loc=0, scale=1, size=(self.fir_length_samples, self.num_outs)
         )
 
