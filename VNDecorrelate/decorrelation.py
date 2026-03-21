@@ -33,7 +33,7 @@ class SignalProcessor(Protocol):
     sample_rate_hz: int
     num_outs: int
 
-    def __call__(self, input_sig: NDArray) -> NDArray:
+    def __call__(self, input_signal: NDArray) -> NDArray:
         raise NotImplementedError
 
 
@@ -45,17 +45,17 @@ class Decorrelator(ABC, SignalProcessor):
     width: float | None = None
 
     @abstractmethod
-    def decorrelate(self, input_sig: NDArray) -> NDArray:
+    def decorrelate(self, input_signal: NDArray) -> NDArray:
         """Main decorrelation function that must be implemented in subclasses."""
         pass
 
-    def __call__(self, input_sig: NDArray) -> NDArray:
+    def __call__(self, input_signal: NDArray) -> NDArray:
         """Alternative way of calling decorrelate."""
-        return self.decorrelate(input_sig)
+        return self.decorrelate(input_signal)
 
 
 class StatelessDecorrelator(Protocol):
-    def __call__(self, input_sig: NDArray, **kwargs) -> NDArray:
+    def __call__(self, input_signal: NDArray, **kwargs) -> NDArray:
         raise NotImplementedError
 
 
@@ -133,13 +133,13 @@ class SignalChain(SignalProcessor):
             )
         return kwargs
 
-    def __call__(self, input_sig: NDArray) -> NDArray:
-        """Decorrelate input_sig with all decorrelators in this SignalChain."""
+    def __call__(self, input_signal: NDArray) -> NDArray:
+        """Decorrelate input_signal with all decorrelators in this SignalChain."""
         self._init_decorrelators()
-        cascaded_sig = input_sig
+        cascaded_sig = input_signal
         for decorrelator in self._decorrelators:
-            cascaded_sig = decorrelator(input_sig)
-            input_sig = cascaded_sig
+            cascaded_sig = decorrelator(input_signal)
+            input_signal = cascaded_sig
         return cascaded_sig
 
     def _init_decorrelators(self) -> None:
@@ -192,42 +192,42 @@ class HaasEffect(Decorrelator):
     delay_time_seconds: float = 0.02
     mode: HaasEffectMode = HaasEffectMode.LR
 
-    def decorrelate(self, input_sig: NDArray) -> NDArray:
-        """Perform a Haas Effect decorrelation on input_sig."""
-        input_sig = to_float32(input_sig)
-        output_sig = self.haas_delay(input_sig)
+    def decorrelate(self, input_signal: NDArray) -> NDArray:
+        """Perform a Haas Effect decorrelation on input_signal."""
+        input_signal = to_float32(input_signal)
+        output_signal = self.haas_delay(input_signal)
 
         if self.width is not None:
-            output_sig = apply_stereo_width(output_sig, self.width)
-        rms_normalize(input_sig, output_sig)
+            output_signal = apply_stereo_width(output_signal, self.width)
+        rms_normalize(input_signal, output_signal)
 
-        return output_sig
+        return output_signal
 
-    def haas_delay(self, input_sig: NDArray) -> NDArray:
+    def haas_delay(self, input_signal: NDArray) -> NDArray:
         """Return a stereo signal where the specified channel is delayed by delay_time."""
-        output_sig = input_sig
+        output_signal = input_signal
         delay_len_samples = round(self.delay_time_seconds * self.sample_rate_hz)
         mono = False
 
-        if input_sig.ndim == 1:
+        if input_signal.ndim == 1:
             mono = True
-            output_sig = mono_to_stereo(input_sig)
+            output_signal = mono_to_stereo(input_signal)
 
         if self.mode == HaasEffectMode.MS:
             if mono:  # sides will be silent
-                mids = stereo_to_mono(output_sig)
+                mids = stereo_to_mono(output_signal)
                 # this is technically incorrect, but we fix it later.
                 sides = mids
-                output_sig = np.column_stack((mids, sides))
+                output_signal = np.column_stack((mids, sides))
             else:
-                output_sig = LR_to_MS(output_sig)
+                output_signal = LR_to_MS(output_signal)
 
-        zero_padding_sig = np.zeros(delay_len_samples)
+        zero_padding = np.zeros(delay_len_samples)
         wet_channel = np.concatenate(
-            (zero_padding_sig, output_sig[:, self.delayed_channel])
+            (zero_padding, output_signal[:, self.delayed_channel])
         )
         dry_channel = np.concatenate(
-            (output_sig[:, 1 - self.delayed_channel], zero_padding_sig)
+            (output_signal[:, 1 - self.delayed_channel], zero_padding)
         )
 
         layout = (
@@ -235,15 +235,15 @@ class HaasEffect(Decorrelator):
             if self.delayed_channel
             else (wet_channel, dry_channel)
         )
-        output_sig = np.column_stack(layout)
+        output_signal = np.column_stack(layout)
 
         if self.mode == HaasEffectMode.MS:
-            output_sig = MS_to_LR(output_sig)
+            output_signal = MS_to_LR(output_signal)
             if mono:
                 # we duplicated the mono channel, here we compensate for it.
-                output_sig *= 0.5
+                output_signal *= 0.5
 
-        return output_sig
+        return output_signal
 
 
 # ----------------------------------------------------------------------------
@@ -388,16 +388,16 @@ class VelvetNoise(Decorrelator):
         if self.num_impulses > self.fir_length_samples * 0.5:
             density = self.density
             raise ValueError(
-                f'Velvet Noise Filter of length {self.fir_length_samples} with {self.num_impulses} impulses is not sparse! ({density=:.2f})\n'
+                f'Velvet Noise Filter of length {self.fir_length_samples} with {self.num_impulses} impulses is not sparse. ({density=:.2f})\n'
                 '\tnum_impulses must be less than half the FIR length in samples.'
             )
         self._velvet_noise = self._generate()
 
-    def convolve(self, input_sig: NDArray) -> NDArray:
+    def convolve(self, input_signal: NDArray) -> NDArray:
         """Perform the optimized convolution of the velvet noise filters onto each channel of a signal."""
-        sig_len = len(input_sig)
+        sig_len = len(input_signal)
         segment_buffer = np.zeros(sig_len, dtype=np.float32)
-        output_sig = np.zeros((sig_len, self.num_outs), dtype=np.float32)
+        output_signal = np.zeros((sig_len, self.num_outs), dtype=np.float32)
 
         for channel_index, channel_segments in enumerate(self.velvet_noise):
             for segment_index, segment in enumerate(channel_segments):
@@ -407,15 +407,15 @@ class VelvetNoise(Decorrelator):
                             # Map impulse_index 0 to sig_len to conform to python indexing rules.
                             segment_buffer[: -impulse_index or sig_len],
                             operator,  # either __isub__ or __iadd__
-                        )(input_sig[impulse_index:, channel_index])
+                        )(input_signal[impulse_index:, channel_index])
                 if self.segment_envelope:
                     segment_buffer *= self.segment_envelope[segment_index]
-                output_sig[:, channel_index] += segment_buffer
+                output_signal[:, channel_index] += segment_buffer
                 segment_buffer.fill(0)
-        return output_sig
+        return output_signal
 
-    def decorrelate(self, input_sig: NDArray) -> NDArray:
-        """Perform a velvet noise decorrelation on input_sig.
+    def decorrelate(self, input_signal: NDArray) -> NDArray:
+        """Perform a velvet noise decorrelation on input_signal.
 
         As of right now only supports stereo decorrelation (i.e. no quad-channel, 5.1, 7.1, etc. support)
         This method will perform an optimized velvet noise convolution for each channel to generate the side channel content.
@@ -423,20 +423,20 @@ class VelvetNoise(Decorrelator):
         Lastly, the output signal is normalized by the RMS of the input signal.
 
         """
-        input_sig = to_float32(input_sig)
+        input_signal = to_float32(input_signal)
 
-        if input_sig.ndim == 1:
-            input_sig = mono_to_stereo(input_sig)
+        if input_signal.ndim == 1:
+            input_signal = mono_to_stereo(input_signal)
 
-        output_sig = self.convolve(input_sig)
-        output_sig = encode_signal_to_side_channel(input_sig, output_sig)
+        output_signal = self.convolve(input_signal)
+        output_signal = encode_signal_to_side_channel(input_signal, output_signal)
 
         if self.width is not None:
-            output_sig = apply_stereo_width(output_sig, self.width)
+            output_signal = apply_stereo_width(output_signal, self.width)
 
-        rms_normalize(input_sig, output_sig)
+        rms_normalize(input_signal, output_signal)
 
-        return output_sig
+        return output_signal
 
     @property
     def density(self) -> float:
@@ -620,22 +620,24 @@ def generate_velvet_noise(
     return velvet_noise
 
 
-def convolve_velvet_noise(input_sig: NDArray, velvet_noise_filters: NDArray) -> NDArray:
+def convolve_velvet_noise(
+    input_signal: NDArray, velvet_noise_filters: NDArray
+) -> NDArray:
     """Simple, stateless, but less performant alternative to `VelvetNoise.convolve()` for convolving velvet noise filters.
-    `input_sig` is an `NDArray` of shape (n, num_channels) and `velvet_noise_filters` is an `NDArray` of shape (m, num_channels).
-    A `ValueError` is raised if the number of channels differs between `input_sig` and `velvet_noise_filters`.
+    `input_signal` is an `NDArray` of shape (n, num_channels) and `velvet_noise_filters` is an `NDArray` of shape (m, num_channels).
+    A `ValueError` is raised if the number of channels differs between `input_signal` and `velvet_noise_filters`.
 
     `velvet_noise_filters` may also be assigned from `VelvetNoise.FIR`. If `generate_velvet_noise` was used, then this function must be used for convolution.
     While this convolution is optimized to take advantage of the sparseness of the velvet noise, it is generally slower due to more memory allocations.
     """
-    num_channels = 1 if input_sig.ndim == 1 else input_sig.shape[1]
+    num_channels = 1 if input_signal.ndim == 1 else input_signal.shape[1]
 
     if num_channels > 1:
-        check_equal_length(input_sig, velvet_noise_filters, dim=1)
+        check_equal_length(input_signal, velvet_noise_filters, dim=1)
 
-    sig_len = len(input_sig)
+    sig_len = len(input_signal)
 
-    output_sig = np.zeros(input_sig.shape, dtype=np.float32)
+    output_signal = np.zeros(input_signal.shape, dtype=np.float32)
 
     for channel_index in range(num_channels):
         velvet_noise = velvet_noise_filters[:, channel_index]
@@ -644,11 +646,11 @@ def convolve_velvet_noise(input_sig: NDArray, velvet_noise_filters: NDArray) -> 
             velvet_noise[velvet_noise != 0.0],
         ):
             # Map index 0 to sig_len to conform to python indexing rules.
-            output_sig[: -index or sig_len, channel_index] += (
-                input_sig[index:, channel_index] * value
+            output_signal[: -index or sig_len, channel_index] += (
+                input_signal[index:, channel_index] * value
             )
 
-    return output_sig
+    return output_signal
 
 
 # ----------------------------------------------------------------------------
@@ -673,31 +675,31 @@ class WhiteNoise(Decorrelator):
             loc=0, scale=1, size=(self.fir_length_samples, self.num_outs)
         )
 
-    def decorrelate(self, input_sig: NDArray) -> NDArray:
-        input_sig = to_float32(input_sig)
+    def decorrelate(self, input_signal: NDArray) -> NDArray:
+        input_signal = to_float32(input_signal)
 
-        if input_sig.ndim == 1:
-            input_sig = mono_to_stereo(input_sig)
+        if input_signal.ndim == 1:
+            input_signal = mono_to_stereo(input_signal)
 
-        sig_len = len(input_sig)
+        sig_len = len(input_signal)
 
-        output_sig = np.zeros((sig_len, self.num_outs), dtype=np.float32)
+        output_signal = np.zeros((sig_len, self.num_outs), dtype=np.float32)
 
         for channel_index in range(self.num_outs):
-            output_sig[:, channel_index] = np.convolve(
-                input_sig[:, channel_index],
+            output_signal[:, channel_index] = np.convolve(
+                input_signal[:, channel_index],
                 self.white_noise_filter[:, channel_index],
                 mode='same',
             )
 
-        output_sig = encode_signal_to_side_channel(input_sig, output_sig)
+        output_signal = encode_signal_to_side_channel(input_signal, output_signal)
 
         if self.width is not None:
-            output_sig = apply_stereo_width(output_sig, self.width)
+            output_signal = apply_stereo_width(output_signal, self.width)
 
-        rms_normalize(input_sig, output_sig)
+        rms_normalize(input_signal, output_signal)
 
-        return output_sig
+        return output_signal
 
     @property
     def fir_length_samples(self) -> int:

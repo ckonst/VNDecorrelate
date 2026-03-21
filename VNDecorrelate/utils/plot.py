@@ -25,10 +25,10 @@ def plot_correlogram(
     plt.close()
 
 
-def plot_signal(input_sig: NDArray, title: str = 'Signal') -> None:
+def plot_signal(input_signal: NDArray, title: str = 'Signal') -> None:
     """Plot the time domain input signal."""
     plt.figure()
-    plt.plot(input_sig)
+    plt.plot(input_signal)
     plt.xlabel('Samples')
     plt.ylabel('Amplitude')
     plt.title(title)

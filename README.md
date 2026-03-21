@@ -21,8 +21,8 @@ fs, sig_float32 = wavfile.read("audio/guitar.wav")
             mode='LR',
         )
     )
-output_sig = chain(sig_float32)
-wavfile.write('audio/guitar_dec.wav', fs, output_sig)
+output_signal = chain(sig_float32)
+wavfile.write('audio/guitar_dec.wav', fs, output_signal)
 ```
 
 ## Further Reading

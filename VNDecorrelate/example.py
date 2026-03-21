@@ -21,20 +21,20 @@ def main() -> None:
         )
     )
 
-    output_sig = chain(guitar)
-    wavfile.write('audio/guitar_dec.wav', fs, output_sig)
+    output_signal = chain(guitar)
+    wavfile.write('audio/guitar_dec.wav', fs, output_signal)
 
     fs, pop_shuffle = wavfile.read('audio/pop_shuffle.wav')
-    output_sig = chain(pop_shuffle)
-    wavfile.write('audio/pop_shuffle_dec.wav', fs, output_sig)
+    output_signal = chain(pop_shuffle)
+    wavfile.write('audio/pop_shuffle_dec.wav', fs, output_signal)
 
     fs, viola = wavfile.read('audio/viola.wav')
-    output_sig = chain(viola)
-    wavfile.write('audio/viola_dec.wav', fs, output_sig)
+    output_signal = chain(viola)
+    wavfile.write('audio/viola_dec.wav', fs, output_signal)
 
     fs, vocal = wavfile.read('audio/vocal.wav')
-    output_sig = chain(vocal)
-    wavfile.write('audio/vocal_dec.wav', fs, output_sig)
+    output_signal = chain(vocal)
+    wavfile.write('audio/vocal_dec.wav', fs, output_signal)
 
 
 if __name__ == '__main__':

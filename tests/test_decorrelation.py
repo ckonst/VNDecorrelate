@@ -14,15 +14,15 @@ from VNDecorrelate.decorrelation import (
 
 class DecorrelationTestCase(TestCase):
     def test__haas_effect_decorrelation(self):
-        input_sig = np.zeros(435)
+        input_signal = np.zeros(435)
         haas = HaasEffect(sample_rate_hz=44100)
-        output_sig = haas(input_sig)
-        self.assertGreater(output_sig.shape[0], 435)
-        self.assertEqual(output_sig.shape[1], 2)
+        output_signal = haas(input_signal)
+        self.assertGreater(output_signal.shape[0], 435)
+        self.assertEqual(output_signal.shape[1], 2)
 
     def test__heterogeneous_signal_chain(self):
         fs = 44100
-        input_sig = np.zeros(1000)
+        input_signal = np.zeros(1000)
         chain = (
             SignalChain(sample_rate_hz=fs)
             .velvet_noise(
@@ -46,9 +46,9 @@ class DecorrelationTestCase(TestCase):
                 generate_velvet_noise(duration_seconds=0.03, num_impulses=30),
             )
         )
-        output_sig = chain(input_sig)
-        self.assertGreater(output_sig.shape[0], 1000)
-        self.assertEqual(output_sig.shape[1], 2)
+        output_signal = chain(input_signal)
+        self.assertGreater(output_signal.shape[0], 1000)
+        self.assertEqual(output_signal.shape[1], 2)
 
     def test__velvet_noise_generation(self):
         vnd = VelvetNoise(sample_rate_hz=44100, seed=1)
@@ -106,17 +106,17 @@ class DecorrelationTestCase(TestCase):
 
     def test__velvet_noise_decorrelation(self):
         vnd = VelvetNoise(sample_rate_hz=44100)
-        input_sig = np.zeros(1000)
-        output_sig = vnd(input_sig)
-        self.assertEqual(output_sig.shape[0], 1000)
-        self.assertEqual(output_sig.shape[1], 2)
+        input_signal = np.zeros(1000)
+        output_signal = vnd(input_signal)
+        self.assertEqual(output_signal.shape[0], 1000)
+        self.assertEqual(output_signal.shape[1], 2)
 
     def test__velvet_noise_decorrelation_15(self):
         vnd = VelvetNoise(num_impulses=15, duration_seconds=0.5, sample_rate_hz=44100)
-        input_sig = np.zeros(1000)
-        output_sig = vnd(input_sig)
-        self.assertEqual(output_sig.shape[0], 1000)
-        self.assertEqual(output_sig.shape[1], 2)
+        input_signal = np.zeros(1000)
+        output_signal = vnd(input_signal)
+        self.assertEqual(output_signal.shape[0], 1000)
+        self.assertEqual(output_signal.shape[1], 2)
 
     def test__velvet_noise_decorrelation_segment_envelope(self):
         vnd = VelvetNoise(
@@ -125,34 +125,34 @@ class DecorrelationTestCase(TestCase):
             sample_rate_hz=44100,
             segment_envelope=(1.0, 0.5, 0.25),
         )
-        input_sig = np.zeros(1000)
-        output_sig = vnd(input_sig)
-        self.assertEqual(output_sig.shape[0], 1000)
-        self.assertEqual(output_sig.shape[1], 2)
+        input_signal = np.zeros(1000)
+        output_signal = vnd(input_signal)
+        self.assertEqual(output_signal.shape[0], 1000)
+        self.assertEqual(output_signal.shape[1], 2)
 
         vnd.segment_envelope = ()
-        output_sig = vnd(input_sig)
-        self.assertEqual(output_sig.shape[0], 1000)
-        self.assertEqual(output_sig.shape[1], 2)
+        output_signal = vnd(input_signal)
+        self.assertEqual(output_signal.shape[0], 1000)
+        self.assertEqual(output_signal.shape[1], 2)
 
         vnd.segment_envelope = [1.0] * 1000
-        output_sig = vnd(input_sig)
-        self.assertEqual(output_sig.shape[0], 1000)
-        self.assertEqual(output_sig.shape[1], 2)
+        output_signal = vnd(input_signal)
+        self.assertEqual(output_signal.shape[0], 1000)
+        self.assertEqual(output_signal.shape[1], 2)
 
     def test__velvet_noise_generated_once(self):
         vnd = VelvetNoise(sample_rate_hz=44100, seed=1)
-        input_sig = np.zeros(1000)
+        input_signal = np.zeros(1000)
         vns_1 = vnd._velvet_noise
-        _ = vnd(input_sig)
+        _ = vnd(input_signal)
         _ = vnd.FIR
         vns_2 = vnd.velvet_noise
         self.assertTrue(np.array_equal(vns_1, vns_2))
 
     def test__convolve_velvet_noise_equality(self):
-        input_sig = np.random.random((10000, 2))
-        output_sig_1 = convolve_velvet_noise(
-            input_sig,
+        input_signal = np.random.random((10000, 2))
+        output_signal_1 = convolve_velvet_noise(
+            input_signal,
             generate_velvet_noise(
                 duration_seconds=0.03,
                 num_impulses=30,
@@ -163,7 +163,7 @@ class DecorrelationTestCase(TestCase):
                 seed=1,
             ),
         )
-        output_sig_2 = VelvetNoise(
+        output_signal_2 = VelvetNoise(
             duration_seconds=0.03,
             num_impulses=30,
             num_outs=2,
@@ -171,12 +171,14 @@ class DecorrelationTestCase(TestCase):
             segment_envelope=(0.85, 0.55, 0.35, 0.2),
             use_log_distribution=True,
             seed=1,
-        ).convolve(input_sig)
-        self.assertEqual(output_sig_1.shape, output_sig_2.shape)
-        self.assertTrue(np.allclose(output_sig_1, output_sig_2, atol=1e-6))
+        ).convolve(input_signal)
+        self.assertEqual(output_signal_1.shape, output_signal_2.shape)
+        self.assertTrue(np.allclose(output_signal_1, output_signal_2, atol=1e-6))
 
     def test__white_noise_decorrelation(self):
-        input_sig = np.random.random(4350)
-        output_sig = WhiteNoise(sample_rate_hz=44100, duration_seconds=0.03)(input_sig)
-        self.assertEqual(output_sig.shape[0], 4350)
-        self.assertEqual(output_sig.shape[1], 2)
+        input_signal = np.random.random(4350)
+        output_signal = WhiteNoise(sample_rate_hz=44100, duration_seconds=0.03)(
+            input_signal
+        )
+        self.assertEqual(output_signal.shape[0], 4350)
+        self.assertEqual(output_signal.shape[1], 2)

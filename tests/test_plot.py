@@ -99,10 +99,10 @@ class PlotTestCase(TestCase):
             )
         )
 
-        output_sig = chain(guitar)
+        output_signal = chain(guitar)
         correlogram = cross_correlogram(
-            output_sig[:, 0],
-            output_sig[:, 1],
+            output_signal[:, 0],
+            output_signal[:, 1],
             sample_rate_hz=fs,
             max_lag_seconds=0.02,
             window_size_seconds=0.02,
