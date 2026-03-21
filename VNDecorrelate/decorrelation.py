@@ -30,7 +30,6 @@ from VNDecorrelate.utils.dsp import (
 @dataclass
 class SignalProcessor(Protocol):
     sample_rate_hz: int
-    num_ins: int
     num_outs: int
 
     def __call__(self, input_sig: NDArray) -> NDArray:
@@ -41,7 +40,6 @@ class SignalProcessor(Protocol):
 class Decorrelator(ABC, SignalProcessor):
     """An abstract base class for a Decorrelator."""
 
-    num_ins: int = 2
     num_outs: int = 2
     width: float | None = None
 
@@ -68,7 +66,6 @@ type _LazyDecorrelator = Callable[[], Decorrelator] | Decorrelator
 class SignalChain(SignalProcessor):
     """A class for building a signal chain of cascading decorrelators."""
 
-    num_ins: int = 2
     num_outs: int = 2
     lazy: bool = True  # If True, wait until the first __call__ to initialize the decorrelators, unless _hot is True
 
@@ -99,25 +96,13 @@ class SignalChain(SignalProcessor):
 
     def _add_decorrelator(self, cls: type[Decorrelator], **kwargs) -> None:
         kwargs = self._validate(cls, **kwargs)
-        match self._decorrelators:
-            case []:
-                self._decorrelators.append(
-                    lambda _: cls(
-                        sample_rate_hz=self.sample_rate_hz,
-                        num_ins=self.num_ins,
-                        num_outs=self.num_outs,
-                        **kwargs,
-                    ),
-                )
-            case [*_, _]:
-                self._decorrelators.append(
-                    lambda i: cls(
-                        sample_rate_hz=self.sample_rate_hz,
-                        num_ins=self._decorrelators[i].num_outs,
-                        num_outs=kwargs.get('num_outs', self.num_outs),
-                        **kwargs,
-                    ),
-                )
+        self._decorrelators.append(
+            lambda _: cls(
+                sample_rate_hz=self.sample_rate_hz,
+                num_outs=kwargs.get('num_outs', self.num_outs),
+                **kwargs,
+            ),
+        )
         if self._hot:
             # Construct the decorrelator immediately if we're hot loading.
             self._decorrelators[-1] = self._decorrelators[-1]()

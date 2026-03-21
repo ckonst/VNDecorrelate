@@ -173,8 +173,6 @@ class DecorrelationTestCase(TestCase):
 
     def test__white_noise_decorrelation(self):
         input_sig = np.random.random(4350)
-        output_sig = WhiteNoise(sample_rate_hz=44100, duration_seconds=0.03, num_ins=1)(
-            input_sig
-        )
+        output_sig = WhiteNoise(sample_rate_hz=44100, duration_seconds=0.03)(input_sig)
         self.assertEqual(output_sig.shape[0], 4350)
         self.assertEqual(output_sig.shape[1], 2)
