@@ -7,7 +7,7 @@ from typing import Any, Callable, Iterator, Protocol, Self, Sequence
 import numpy as np
 from numpy.typing import NDArray
 
-from VNDecorrelate.utils.dsp import (
+from vndecorrelate.utils.dsp import (
     LR_to_MS,
     MS_to_LR,
     apply_stereo_width,

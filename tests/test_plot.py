@@ -1,117 +1,132 @@
-from unittest import TestCase
-
 import numpy as np
 import scipy.io.wavfile as wavfile
 from scipy import signal
 
-from VNDecorrelate.decorrelation import SignalChain, VelvetNoise, generate_velvet_noise
-from VNDecorrelate.utils.dsp import cross_correlogram, sine_sweep
-from VNDecorrelate.utils.plot import plot_correlogram, plot_signal, plot_spectrogram
+from vndecorrelate.decorrelation import VelvetNoise, WhiteNoise, generate_velvet_noise
+from vndecorrelate.utils.dsp import cross_correlogram, sine_sweep
+from vndecorrelate.utils.plot import plot_correlogram, plot_signal, plot_spectrogram
 
 
-class PlotTestCase(TestCase):
-    @classmethod
-    def setUpClass(cls):
-        pass
+def test_plots_basic():
+    # simply run the main function to ensure no errors.
+    sample_rate, sig_float32 = wavfile.read('audio/viola.wav')
+    vnd = VelvetNoise(
+        sample_rate_hz=sample_rate,
+        duration_seconds=0.03,
+        num_impulses=30,
+        num_outs=2,
+        use_log_distribution=True,
+        seed=1,
+    )
+    result = vnd.decorrelate(sig_float32)
+    vns = vnd.FIR
 
-    def test_plots_basic(self):
-        # simply run the main function to ensure no errors.
-        sample_rate, sig_float32 = wavfile.read('audio/viola.wav')
-        vnd = VelvetNoise(
-            sample_rate_hz=sample_rate,
-            duration_seconds=0.03,
-            num_impulses=30,
-            num_outs=2,
-            use_log_distribution=True,
-            seed=1,
-        )
-        result = vnd.decorrelate(sig_float32)
-        vns = vnd.FIR
+    plot_signal(vns[:, 0], title='Velvet Noise Sequence L')
 
-        plot_signal(vns[:, 0], title='Velvet Noise Sequence L')
+    plot_signal(vns[:, 1], title='Velvet Noise Sequence R')
 
-        plot_signal(vns[:, 1], title='Velvet Noise Sequence R')
+    fir = generate_velvet_noise(
+        sample_rate_hz=sample_rate,
+        duration_seconds=0.03,
+        num_impulses=30,
+        num_outs=2,
+        use_log_distribution=True,
+        seed=1,
+    )
 
-        fir = generate_velvet_noise(
-            sample_rate_hz=sample_rate,
-            duration_seconds=0.03,
-            num_impulses=30,
-            num_outs=2,
-            use_log_distribution=True,
-            seed=1,
-        )
+    plot_signal(fir[:, 0], title='Generated Velvet Noise Sequence L')
+    plot_signal(fir[:, 1], title='Generated Velvet Noise Sequence R')
 
-        plot_signal(fir[:, 0], title='Generated Velvet Noise Sequence L')
-        plot_signal(fir[:, 1], title='Generated Velvet Noise Sequence R')
+    plot_signal(sig_float32, title='Input')
+    plot_signal(result, title='Output')
 
-        plot_signal(sig_float32, title='Input')
-        plot_signal(result, title='Output')
+    assert True
 
-        self.assertTrue(True)
 
-    def test_plot_signal(self):
-        x = np.random.uniform(size=100)
-        plot_signal(x)
-        self.assertTrue(True)
+def test_plot_signal():
+    x = np.random.uniform(size=100)
+    plot_signal(x)
 
-    def test_plot_correlogram(self):
-        fs = 16000
-        _sine_sweep = sine_sweep(
-            start_freq_hz=20,
-            end_freq_hz=8000,
-            duration_seconds=9,
-            sample_rate_hz=fs,
-        )
-        plot_spectrogram(
-            signal.spectrogram(_sine_sweep, fs=fs)[-1], title='Sine Sweep Signal'
-        )
-        correlogram = cross_correlogram(
-            _sine_sweep,
-            _sine_sweep,
-            sample_rate_hz=fs,
-            max_lag_seconds=0.02,
-            window_size_seconds=0.02,
-            stride_seconds=0.01,
-        )
-        plot_correlogram(
-            correlogram,
-            lag_seconds=0.02,
-            time_seconds=9,
-            title='Sine-sweep Auto Correlogram',
-        )
-        self.assertTrue(True)
+    assert True
 
-    def test_plot_correlogram__from_file(self):
-        fs, guitar = wavfile.read('audio/guitar.wav')
 
-        chain = (
-            SignalChain(sample_rate_hz=fs)
-            .velvet_noise(
-                duration_seconds=0.03,
-                num_impulses=30,
-                seed=1,
-                use_log_distribution=True,
-            )
-            .haas_effect(
-                delay_time_seconds=0.02,
-                delayed_channel=1,
-                mode='LR',
-            )
-        )
+def test__plot_sine_sweep_correlogram():
+    fs = 16000
+    _sine_sweep = sine_sweep(
+        start_freq_hz=20,
+        end_freq_hz=8000,
+        duration_seconds=5,
+        sample_rate_hz=fs,
+    )
+    plot_spectrogram(
+        signal.spectrogram(_sine_sweep, fs=fs)[-1], title='Sine Sweep Signal'
+    )
+    correlogram = cross_correlogram(
+        _sine_sweep,
+        _sine_sweep,
+        sample_rate_hz=fs,
+        max_lag_seconds=0.02,
+        window_size_seconds=0.02,
+        stride_seconds=0.01,
+    )
+    plot_correlogram(
+        correlogram,
+        lag_seconds=0.02,
+        time_seconds=5,
+        title='Sine-sweep Auto Correlogram',
+    )
+    assert True
 
-        output_signal = chain(guitar)
-        correlogram = cross_correlogram(
-            output_signal[:, 0],
-            output_signal[:, 1],
-            sample_rate_hz=fs,
-            max_lag_seconds=0.02,
-            window_size_seconds=0.02,
-            stride_seconds=0.01,
-        )
-        plot_correlogram(
-            correlogram,
-            lag_seconds=0.02,
-            time_seconds=9,
-            title='Guitar Output Cross Correlogram',
-        )
-        self.assertTrue(True)
+
+def test__plot_correlogram_from_file():
+    fs, input_signal = wavfile.read('audio/viola.wav')
+
+    duration_seconds = 0.03
+
+    vnd = VelvetNoise(
+        sample_rate_hz=fs,
+        duration_seconds=duration_seconds,
+        num_impulses=30,
+        seed=1,
+        use_log_distribution=True,
+    )
+
+    vnd_output = vnd(input_signal)
+    correlogram = cross_correlogram(
+        vnd_output[:, 0],
+        vnd_output[:, 1],
+        sample_rate_hz=fs,
+        max_lag_seconds=0.02,
+        window_size_seconds=0.02,
+        stride_seconds=0.01,
+    )
+    plot_correlogram(
+        correlogram,
+        lag_seconds=0.02,
+        time_seconds=5,
+        title='Viola Velvet Noise Cross Correlogram',
+    )
+
+    wnd = WhiteNoise(
+        sample_rate_hz=fs,
+        duration_seconds=duration_seconds,
+        seed=1,
+    )
+
+    wnd_output = wnd(input_signal)
+    correlogram = cross_correlogram(
+        wnd_output[:, 0],
+        wnd_output[:, 1],
+        sample_rate_hz=fs,
+        max_lag_seconds=0.02,
+        window_size_seconds=0.02,
+        stride_seconds=0.01,
+    )
+    plot_correlogram(
+        correlogram,
+        lag_seconds=0.02,
+        time_seconds=5,
+        title='Viola White Noise Cross Correlogram',
+    )
+
+    assert True
