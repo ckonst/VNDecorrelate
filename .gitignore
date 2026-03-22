@@ -133,3 +133,6 @@ dmypy.json
 
 # test output
 tests/plots/*.png
+!tests/plots/Basic Velvet Noise Sequence.png
+!tests/plots/Segmented Decaying Velvet Noise Sequence.png
+!tests/plots/Segmented Decaying Log Distributed Velvet Noise Sequence.png

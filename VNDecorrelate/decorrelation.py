@@ -566,9 +566,11 @@ def generate_velvet_noise(
     fir_length_samples = int(duration_seconds * sample_rate_hz)
 
     velvet_noise = np.zeros((fir_length_samples, num_outs), dtype=np.float32)
-    num_segments = max(
-        len(segment_envelope), 1
-    )  # If segment_envelope is empty, use a single segment with no decay.
+
+    # If segment_envelope is empty, use a single segment with no decay.
+    if not segment_envelope:
+        segment_envelope = (1.0,)
+    num_segments = len(segment_envelope)
 
     # average number of samples between two impulses
     impulse_interval = sample_rate_hz / (num_impulses / duration_seconds)

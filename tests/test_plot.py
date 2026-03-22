@@ -10,6 +10,44 @@ from vndecorrelate.utils.plot import plot_correlogram, plot_signal, plot_spectro
 def test_plots_basic():
     # simply run the main function to ensure no errors.
     sample_rate, sig_float32 = wavfile.read('audio/viola.wav')
+
+    plot_signal(
+        generate_velvet_noise(
+            sample_rate_hz=sample_rate,
+            duration_seconds=0.03,
+            num_impulses=30,
+            num_outs=1,
+            use_log_distribution=False,
+            segment_envelope=(),
+            seed=1,
+        ),
+        title='Basic Velvet Noise Sequence',
+    )
+
+    plot_signal(
+        generate_velvet_noise(
+            sample_rate_hz=sample_rate,
+            duration_seconds=0.03,
+            num_impulses=30,
+            num_outs=1,
+            use_log_distribution=False,
+            seed=1,
+        ),
+        title='Segmented Decaying Velvet Noise Sequence',
+    )
+
+    plot_signal(
+        generate_velvet_noise(
+            sample_rate_hz=sample_rate,
+            duration_seconds=0.03,
+            num_impulses=30,
+            num_outs=1,
+            use_log_distribution=True,
+            seed=1,
+        ),
+        title='Segmented Decaying Log Distributed Velvet Noise Sequence',
+    )
+
     vnd = VelvetNoise(
         sample_rate_hz=sample_rate,
         duration_seconds=0.03,
