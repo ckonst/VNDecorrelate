@@ -691,8 +691,6 @@ class WhiteNoise(Decorrelator):
                 mode='same',
             )
 
-        output_signal = encode_signal_to_side_channel(input_signal, output_signal)
-
         if self.width is not None:
             output_signal = apply_stereo_width(output_signal, self.width)
 

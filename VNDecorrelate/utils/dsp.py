@@ -284,3 +284,20 @@ def sine_sweep(
     k = np.log(end_freq_hz / start_freq_hz) / duration_seconds
     sine_sweep = np.sin(2 * np.pi * start_freq_hz * (np.exp(k * t) - 1) / k)
     return sine_sweep.astype(np.float32)
+
+
+def polar_coordinates(
+    left: NDArray, right: NDArray, normalize: bool = True
+) -> tuple[NDArray, NDArray]:
+    """Return each sample of the left and right channels as polar coordinates: r, theta."""
+    # atan2 gives angle in radians; the (L-R, L+R) formulation
+    # naturally spans -pi/2 ... +pi/2 (the 180° stereo field)
+    theta = np.arctan2(left - right, left + right)  # radians, -π/2 to +π/2
+    r = np.sqrt(left**2 + right**2)  # magnitude [0, √2]
+
+    if normalize:
+        r_max = r.max()
+        if r_max > 0:
+            r /= r_max
+
+    return r, theta

@@ -2,9 +2,18 @@ import numpy as np
 import scipy.io.wavfile as wavfile
 from scipy import signal
 
-from vndecorrelate.decorrelation import VelvetNoise, WhiteNoise, generate_velvet_noise
+from vndecorrelate.decorrelation import (
+    VelvetNoise,
+    WhiteNoise,
+    generate_velvet_noise,
+)
 from vndecorrelate.utils.dsp import cross_correlogram, sine_sweep
-from vndecorrelate.utils.plot import plot_correlogram, plot_signal, plot_spectrogram
+from vndecorrelate.utils.plot import (
+    plot_correlogram,
+    plot_polar_sample,
+    plot_signal,
+    plot_spectrogram,
+)
 
 
 def test_plots_basic():
@@ -166,5 +175,7 @@ def test__plot_correlogram_from_file():
         time_seconds=5,
         title='Viola White Noise Cross Correlogram',
     )
+
+    plot_polar_sample(wnd_output)
 
     assert True
