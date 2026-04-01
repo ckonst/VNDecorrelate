@@ -81,7 +81,8 @@ class SignalChain(SignalProcessor):
     def __post_init__(self) -> None:
         if self._decorrelators is not None:
             raise TypeError(
-                'Cannot supply decorrelators directly, use velvet_noise or haas_effect.'
+                'Cannot supply decorrelators directly, use `SignalChain.velvet_noise`,'
+                ' `SignalChain.haas_effect`, `SignalChain.white_noise`, or `SignalChain.stateless`.'
             )
         self._decorrelators = []
 
@@ -102,9 +103,9 @@ class SignalChain(SignalProcessor):
 
     def stateless(self, function: StatelessDecorrelator, *args, **kwargs):
         self._decorrelators.append(
-            lambda: partial(function, *args, **kwargs)
+            partial(function, *args, **kwargs)
             if self._hot
-            else partial(function, *args, **kwargs)
+            else lambda: partial(function, *args, **kwargs)
         )
         return self
 
@@ -429,7 +430,7 @@ class VelvetNoise(Decorrelator):
             input_signal = mono_to_stereo(input_signal)
 
         output_signal = self.convolve(input_signal)
-        output_signal = encode_signal_to_side_channel(input_signal, output_signal)
+        encode_signal_to_side_channel(input_signal, output_signal)
 
         if self.width is not None:
             output_signal = apply_stereo_width(output_signal, self.width)
@@ -487,7 +488,7 @@ class VelvetNoise(Decorrelator):
         # average number of samples between two impulses
         impulse_interval = self.sample_rate_hz / self.density
 
-        # number of samples between each logarithimcally distributed impulse
+        # number of samples between each logarithmically distributed impulse
         log_impulse_intervals = 10.0 ** (
             2 * (np.arange(self.num_impulses + 1) / self.num_impulses)
         )
@@ -575,7 +576,7 @@ def generate_velvet_noise(
     # average number of samples between two impulses
     impulse_interval = sample_rate_hz / (num_impulses / duration_seconds)
 
-    # number of samples between each logarithimcally distributed impulse
+    # number of samples between each logarithmically distributed impulse
     log_impulse_intervals = 10.0 ** (2 * (np.arange(num_impulses + 1) / num_impulses))
 
     cumsum_log_impulse_intervals = np.cumsum(log_impulse_intervals)

@@ -12,9 +12,9 @@ class NormalizeMode(StrEnum):
 
 
 def apply_stereo_width(input_signal: NDArray, width: float) -> NDArray:
-    """Return input_signal with the Mid-Side balance interpolated at width.
+    """Return `input_signal` with the Mid-Side balance interpolated at width.
 
-    input_signal MUST be a Left-Right stereo signal of shape (n, 2).
+    `input_signal` MUST be a Left-Right stereo signal of shape (n, 2).
 
     Parameters
     ----------
@@ -37,12 +37,12 @@ def apply_stereo_width(input_signal: NDArray, width: float) -> NDArray:
 
 def encode_signal_to_side_channel(
     input_signal: NDArray, decorrelated_signal: NDArray
-) -> NDArray:
-    """Encodes decorrelated_signal to be the side channel of input_signal.
+) -> None:
+    """Encodes `decorrelated_signal` in-place to be the side channel of `input_signal`.
 
-    input_signal and decorrelated_signal MUST be a Left-Right stereo signal of shape (n, 2).
-    Assumes that input_signal is a mono signal duplicated to stereo,
-    i.e. input_signal's side channel will be overwritten.
+    `input_signal` and decorrelated_signal MUST be a Left-Right stereo signal of shape (n, 2).
+    Assumes that `input_signal` is a mono signal duplicated to stereo,
+    both channels of `decorrelated_signal` will be overwritten.
 
     Parameters
     ----------
@@ -59,13 +59,10 @@ def encode_signal_to_side_channel(
     """
     check_stereo(input_signal)
     check_stereo(decorrelated_signal)
-    L = input_signal[:, 0]
-    R = input_signal[:, 1]
-    Ld = decorrelated_signal[:, 0]
-    Rd = decorrelated_signal[:, 1]
-    M = L + R
-    S = Ld - Rd
-    return np.column_stack(((M + S) * 0.5, ((M - S) * 0.5)))
+    M = np.sum(input_signal, axis=1)
+    S = np.sum(decorrelated_signal, axis=1)
+    decorrelated_signal[:, 0] = (M + S) * 0.5
+    decorrelated_signal[:, 1] = (M - S) * 0.5
 
 
 def to_float32(input_signal: NDArray) -> NDArray[np.float32]:

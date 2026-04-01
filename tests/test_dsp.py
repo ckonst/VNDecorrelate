@@ -58,13 +58,15 @@ def test__encode_signal_to_side_channel():
         encode_signal_to_side_channel(x1, x2)
 
     x2 = np.column_stack((np.zeros(100), np.full((100,), 100)))
-    y1 = encode_signal_to_side_channel(x1, x2)
+    encode_signal_to_side_channel(x1, x2)
+    y1 = x2.copy()
     y1 = LR_to_MS(y1)
 
     assert np.array_equal(y1[:, 1], (x2[:, 0] - x2[:, 1]) / 2)
 
     x2 = np.full((100, 2), 100)
-    y1 = encode_signal_to_side_channel(x1, x2)
+    encode_signal_to_side_channel(x2, x1)
+    y1 = x1.copy()
     y1 = LR_to_MS(y1)
 
     assert np.array_equal(y1[:, 1], np.zeros((100,)))
