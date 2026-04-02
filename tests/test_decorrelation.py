@@ -12,12 +12,13 @@ from vndecorrelate.decorrelation import (
 
 
 def test__haas_effect_decorrelation():
-    input_signal = np.zeros(435)
-    haas = HaasEffect(sample_rate_hz=44100)
+    input_signal = np.ones(435)
+    haas = HaasEffect(sample_rate_hz=44100, delay_time_seconds=0.02)
     output_signal = haas(input_signal)
 
-    assert output_signal.shape[0] > 435
+    assert output_signal.shape[0] == 1317  # 435 + 0.02 * 44100
     assert output_signal.shape[1] == 2
+    assert 0.0 != np.sum(output_signal)
 
 
 def test__heterogeneous_signal_chain():

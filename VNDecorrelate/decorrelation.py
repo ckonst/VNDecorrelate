@@ -16,7 +16,6 @@ from vndecorrelate.utils.dsp import (
     log_distribution,
     mono_to_stereo,
     rms_normalize,
-    stereo_to_mono,
     to_float32,
     uniform_density,
 )
@@ -200,43 +199,30 @@ class HaasEffect(Decorrelator):
 
         if self.width is not None:
             apply_stereo_width(output_signal, self.width)
-        rms_normalize(input_signal, output_signal)
 
         return output_signal
 
     def haas_delay(self, input_signal: NDArray) -> NDArray:
         """Return a stereo signal where the specified channel is delayed by delay_time."""
-        output_signal = input_signal
         delay_len_samples = round(self.delay_time_seconds * self.sample_rate_hz)
+        input_length = len(input_signal)
+        output_signal = np.zeros((input_length + delay_len_samples, 2))
         mono = False
 
         if input_signal.ndim == 1:
+            input_signal = mono_to_stereo(input_signal)
             mono = True
-            output_signal = mono_to_stereo(input_signal)
 
-        if self.mode == HaasEffectMode.MS:
-            if mono:  # sides will be silent
-                mids = stereo_to_mono(output_signal)
-                # this is technically incorrect, but we fix it later.
-                sides = mids
-                output_signal = np.column_stack((mids, sides))
-            else:
-                LR_to_MS(output_signal)
+        output_signal[:input_length, :] = input_signal
 
-        zero_padding = np.zeros(delay_len_samples)
-        wet_channel = np.concatenate(
-            (zero_padding, output_signal[:, self.delayed_channel])
-        )
-        dry_channel = np.concatenate(
-            (output_signal[:, 1 - self.delayed_channel], zero_padding)
-        )
+        # side channel will be silent if the signal is mono,
+        # since we already duplicated to stereo, we'll interpret that signal as Mid-Side.
+        if self.mode == HaasEffectMode.MS and not mono:
+            LR_to_MS(output_signal)
 
-        layout = (
-            (dry_channel, wet_channel)
-            if self.delayed_channel
-            else (wet_channel, dry_channel)
+        output_signal[:, self.delayed_channel] = np.roll(
+            output_signal[:, self.delayed_channel], delay_len_samples, axis=0
         )
-        output_signal = np.column_stack(layout)
 
         if self.mode == HaasEffectMode.MS:
             MS_to_LR(output_signal)
