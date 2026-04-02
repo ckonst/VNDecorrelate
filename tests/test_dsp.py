@@ -17,25 +17,28 @@ from vndecorrelate.utils.dsp import (
 
 
 def test__apply_stereo_width():
-    x1 = np.random.uniform(size=(100, 2))
-    y1 = apply_stereo_width(x1, 1.0)
+    x1 = np.column_stack((np.ones(100), np.zeros(100))).astype(np.float32)
+    apply_stereo_width(x1, 1.0)
+    LR_to_MS(x1)
 
-    assert 0.0 == pytest.approx(np.sum(LR_to_MS(y1)[:, 0]))
-    assert 0.0 != pytest.approx(np.sum(LR_to_MS(y1)[:, 1]))
+    assert 0.0 == np.sum(x1[:, 0])
+    assert 0.0 != np.sum(x1[:, 1])
 
-    x2 = np.random.uniform(size=(100, 2))
-    y2 = apply_stereo_width(x2, 0.0)
+    x2 = np.random.uniform(size=(100, 2)).astype(np.float32)
+    apply_stereo_width(x2, 0.0)
+    LR_to_MS(x2)
 
-    assert 0.0 == pytest.approx(np.sum(LR_to_MS(y2)[:, 1]))
-    assert 0.0 != pytest.approx(np.sum(LR_to_MS(y2)[:, 0]))
+    assert 0.0 == pytest.approx(np.sum(x2[:, 1]))
+    assert 0.0 != pytest.approx(np.sum(x2[:, 0]))
 
-    x3 = np.full((100, 2), 100)
-    y3 = apply_stereo_width(x3, 0.5)
+    x3 = np.full((100, 2), 100).astype(np.float32)
+    apply_stereo_width(x3, 0.5)
 
-    assert 100 * 100 == pytest.approx(np.sum(y3))
+    assert 100 * 100 == pytest.approx(np.sum(x3))
 
-    x4 = np.full((100, 2), 100)
-    y4 = apply_stereo_width(x4, 0.25)
+    x4 = np.full((100, 2), 100).astype(np.float32)
+    y4 = x4.copy()
+    apply_stereo_width(y4, 0.25)
 
     assert not np.array_equal(x4, y4)
 
@@ -60,14 +63,14 @@ def test__encode_signal_to_side_channel():
     x2 = np.column_stack((np.zeros(100), np.full((100,), 100)))
     encode_signal_to_side_channel(x1, x2)
     y1 = x2.copy()
-    y1 = LR_to_MS(y1)
+    LR_to_MS(y1)
 
-    assert np.array_equal(y1[:, 1], (x2[:, 0] - x2[:, 1]) / 2)
+    assert y1[:, 1] == pytest.approx((x2[:, 0] - x2[:, 1]) / 2)
 
     x2 = np.full((100, 2), 100)
     encode_signal_to_side_channel(x2, x1)
     y1 = x1.copy()
-    y1 = LR_to_MS(y1)
+    LR_to_MS(y1)
 
     assert np.array_equal(y1[:, 1], np.zeros((100,)))
 
@@ -181,16 +184,16 @@ def test_stereo_to_mono():
 
 def test_LR_to_MS():
     x = np.array([[1, 1], [2, 2], [3, 3], [4, 4]])
-    y = LR_to_MS(x)
-    y_truth = np.array([[1, 0], [2, 0], [3, 0], [4, 0]])
+    LR_to_MS(x)
+    y = np.array([[1, 0], [2, 0], [3, 0], [4, 0]])
 
-    assert np.array_equal(y, y_truth)
+    assert np.array_equal(x, y)
 
-    x = np.array([[1, 2], [2, 4], [3, 6], [4, 8]])
-    y = LR_to_MS(x)
-    y_truth = np.array([[1.5, -0.5], [3, -1], [4.5, -1.5], [6, -2]])
+    x = np.array([[1, 2], [2, 4], [3, 6], [4, 8]]).astype(np.float32)
+    LR_to_MS(x)
+    y = np.array([[1.5, -0.5], [3, -1], [4.5, -1.5], [6, -2]])
 
-    assert np.array_equal(y, y_truth)
+    assert np.array_equal(x, y)
 
     x = np.array([])
 
@@ -205,16 +208,16 @@ def test_LR_to_MS():
 
 def test_MS_to_LR():
     x = np.array([[1, 1], [2, 2], [3, 3], [4, 4]])
-    y = MS_to_LR(x)
-    y_truth = np.array([[2, 0], [4, 0], [6, 0], [8, 0]])
+    MS_to_LR(x)
+    y = np.array([[2, 0], [4, 0], [6, 0], [8, 0]])
 
-    assert np.array_equal(y, y_truth)
+    assert np.array_equal(x, y)
 
     x = np.array([[1, 2], [2, 4], [3, 6], [4, 8]])
-    y = MS_to_LR(x)
-    y_truth = np.array([[3, -1], [6, -2], [9, -3], [12, -4]])
+    MS_to_LR(x)
+    y = np.array([[3, -1], [6, -2], [9, -3], [12, -4]])
 
-    assert np.array_equal(y, y_truth)
+    assert np.array_equal(x, y)
 
     x = np.array([])
 

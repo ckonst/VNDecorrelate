@@ -199,7 +199,7 @@ class HaasEffect(Decorrelator):
         output_signal = self.haas_delay(input_signal)
 
         if self.width is not None:
-            output_signal = apply_stereo_width(output_signal, self.width)
+            apply_stereo_width(output_signal, self.width)
         rms_normalize(input_signal, output_signal)
 
         return output_signal
@@ -221,7 +221,7 @@ class HaasEffect(Decorrelator):
                 sides = mids
                 output_signal = np.column_stack((mids, sides))
             else:
-                output_signal = LR_to_MS(output_signal)
+                LR_to_MS(output_signal)
 
         zero_padding = np.zeros(delay_len_samples)
         wet_channel = np.concatenate(
@@ -239,7 +239,7 @@ class HaasEffect(Decorrelator):
         output_signal = np.column_stack(layout)
 
         if self.mode == HaasEffectMode.MS:
-            output_signal = MS_to_LR(output_signal)
+            MS_to_LR(output_signal)
             if mono:
                 # we duplicated the mono channel, here we compensate for it.
                 output_signal *= 0.5
@@ -433,7 +433,7 @@ class VelvetNoise(Decorrelator):
         encode_signal_to_side_channel(input_signal, output_signal)
 
         if self.width is not None:
-            output_signal = apply_stereo_width(output_signal, self.width)
+            apply_stereo_width(output_signal, self.width)
 
         rms_normalize(input_signal, output_signal)
 
@@ -693,7 +693,7 @@ class WhiteNoise(Decorrelator):
             )
 
         if self.width is not None:
-            output_signal = apply_stereo_width(output_signal, self.width)
+            apply_stereo_width(output_signal, self.width)
 
         rms_normalize(input_signal, output_signal)
 

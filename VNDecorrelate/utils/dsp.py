@@ -11,7 +11,7 @@ class NormalizeMode(StrEnum):
     DUAL_MONO = 'dual_mono'
 
 
-def apply_stereo_width(input_signal: NDArray, width: float) -> NDArray:
+def apply_stereo_width(input_signal: NDArray, width: float) -> None:
     """Return `input_signal` with the Mid-Side balance interpolated at width.
 
     `input_signal` MUST be a Left-Right stereo signal of shape (n, 2).
@@ -23,16 +23,11 @@ def apply_stereo_width(input_signal: NDArray, width: float) -> NDArray:
     width : float
         The percentage to scale the side channel by [0.0, 1.0].
 
-    Returns
-    -------
-    NDArray
-        The width-adjusted signal.
-
     """
-    input_signal = LR_to_MS(input_signal)
+    LR_to_MS(input_signal)
     input_signal[:, 0] *= 1.0 - width
     input_signal[:, 1] *= width
-    return MS_to_LR(input_signal)
+    MS_to_LR(input_signal)
 
 
 def encode_signal_to_side_channel(
@@ -60,7 +55,8 @@ def encode_signal_to_side_channel(
     check_stereo(input_signal)
     check_stereo(decorrelated_signal)
     M = np.sum(input_signal, axis=1)
-    S = np.sum(decorrelated_signal, axis=1)
+    # diff does col 1 - col 0, so swap columns to get L - R
+    S = np.diff(decorrelated_signal[:, [1, 0]], axis=1).squeeze() * 0.5
     decorrelated_signal[:, 0] = (M + S) * 0.5
     decorrelated_signal[:, 1] = (M - S) * 0.5
 
@@ -120,11 +116,11 @@ def mono_to_stereo(input_signal: NDArray) -> NDArray:
 def stereo_to_mono(input_signal: NDArray) -> NDArray:
     """Convert a stereo signal of shape (n, 2) to a mono signal of shape (n,)."""
     check_stereo(input_signal)
-    return (input_signal[:, 0] + input_signal[:, 1]) * 0.5
+    return np.sum(input_signal, axis=1) * 0.5
 
 
-def LR_to_MS(input_signal: NDArray) -> NDArray:
-    """Given a Left-Right stereo signal, return its Mid-Side equivalent.
+def LR_to_MS(input_signal: NDArray) -> None:
+    """Given a Left-Right stereo signal, convert it to Mid-Side in-place.
 
     Converts LR to MS with the formula:
         M = (L + R) / 2
@@ -137,20 +133,17 @@ def LR_to_MS(input_signal: NDArray) -> NDArray:
     input_signal : NDArray
         The original LR stereo signal.
 
-    Returns
-    -------
-    NDArray
-        The output stereo signal in Mid-Side domain.
-
     """
     check_stereo(input_signal)
-    M = (input_signal[:, 0] + input_signal[:, 1]) * 0.5
-    S = (input_signal[:, 0] - input_signal[:, 1]) * 0.5
-    return np.column_stack((M, S))
+    M = np.sum(input_signal, axis=1) * 0.5
+    # diff does col 1 - col 0, so swap columns to get M - S
+    S = np.diff(input_signal[:, [1, 0]], axis=1).squeeze() * 0.5
+    input_signal[:, 0] = M
+    input_signal[:, 1] = S
 
 
-def MS_to_LR(input_signal: NDArray) -> NDArray:
-    """Given a Mid-Side stereo signal return its Left-Right equivalent.
+def MS_to_LR(input_signal: NDArray) -> None:
+    """Given a Mid-Side stereo signal, convert it to Left-Right in-place.
 
     Converts MS to LR with the formula:
         L = M + S
@@ -163,16 +156,13 @@ def MS_to_LR(input_signal: NDArray) -> NDArray:
     input_signal : NDArray
         The original MS stereo signal.
 
-    Returns
-    -------
-    NDArray
-        The output stereo signal in Left-Right domain.
-
     """
     check_stereo(input_signal)
-    L = input_signal[:, 0] + input_signal[:, 1]
-    R = input_signal[:, 0] - input_signal[:, 1]
-    return np.column_stack((L, R))
+    L = np.sum(input_signal, axis=1)
+    # diff does col 1 - col 0, so swap columns to get M - S
+    R = np.diff(input_signal[:, [1, 0]], axis=1).squeeze()
+    input_signal[:, 0] = L
+    input_signal[:, 1] = R
 
 
 def log_distribution(
