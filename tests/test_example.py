@@ -13,7 +13,7 @@ def test_example():
             duration_seconds=0.03,
             num_impulses=30,
             seed=1,
-            use_log_distribution=True,
+            log_distribution_strength=1.0,
         )
         .haas_effect(
             delay_time_seconds=0.02,

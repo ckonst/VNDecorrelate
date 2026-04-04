@@ -61,8 +61,8 @@ chain = (
     .velvet_noise(
         duration_seconds=0.03,
         num_impulses=30,
+        log_distribution_strength=1.0,
         seed=1,
-        use_log_distribution=True,
     )
     .haas_effect(
         delay_time_seconds=0.02,

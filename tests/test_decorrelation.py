@@ -63,7 +63,7 @@ def test__velvet_noise_generation():
 
     assert sequences != vnd._velvet_noise
 
-    vnd = VelvetNoise(sample_rate_hz=44100, use_log_distribution=False, seed=1)
+    vnd = VelvetNoise(sample_rate_hz=44100, log_distribution_strength=0.0, seed=1)
 
     assert sequences != vnd._velvet_noise
 
@@ -75,7 +75,7 @@ def test__velvet_noise_generation_equality():
         num_outs=2,
         sample_rate_hz=44100,
         segment_envelope=(0.85, 0.55, 0.35, 0.2),
-        use_log_distribution=True,
+        log_distribution_strength=1.0,
         seed=1,
     )
     FIR = (
@@ -85,7 +85,7 @@ def test__velvet_noise_generation_equality():
             num_outs=2,
             sample_rate_hz=44100,
             segment_envelope=(0.85, 0.55, 0.35, 0.2),
-            use_log_distribution=True,
+            log_distribution_strength=1.0,
             seed=1,
         ),
     )
@@ -179,7 +179,7 @@ def test__convolve_velvet_noise_equality():
             num_outs=2,
             sample_rate_hz=44100,
             segment_envelope=(0.85, 0.55, 0.35, 0.2),
-            use_log_distribution=True,
+            log_distribution_strength=1.0,
             seed=1,
         ),
     )
@@ -189,7 +189,7 @@ def test__convolve_velvet_noise_equality():
         num_outs=2,
         sample_rate_hz=44100,
         segment_envelope=(0.85, 0.55, 0.35, 0.2),
-        use_log_distribution=True,
+        log_distribution_strength=1.0,
         seed=1,
     ).convolve(input_signal)
 

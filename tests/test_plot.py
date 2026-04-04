@@ -26,7 +26,7 @@ def test_plots_basic():
             duration_seconds=0.03,
             num_impulses=30,
             num_outs=1,
-            use_log_distribution=False,
+            log_distribution_strength=0.0,
             segment_envelope=(),
             seed=1,
         ),
@@ -39,7 +39,7 @@ def test_plots_basic():
             duration_seconds=0.03,
             num_impulses=30,
             num_outs=1,
-            use_log_distribution=False,
+            log_distribution_strength=0.0,
             seed=1,
         ),
         title='Segmented Decaying Velvet Noise Sequence',
@@ -51,7 +51,7 @@ def test_plots_basic():
             duration_seconds=0.03,
             num_impulses=30,
             num_outs=1,
-            use_log_distribution=True,
+            log_distribution_strength=1.0,
             seed=1,
         ),
         title='Segmented Decaying Log Distributed Velvet Noise Sequence',
@@ -62,7 +62,7 @@ def test_plots_basic():
         duration_seconds=0.03,
         num_impulses=30,
         num_outs=2,
-        use_log_distribution=True,
+        log_distribution_strength=1.0,
         seed=1,
     )
     result = vnd.decorrelate(sig_float32)
@@ -77,7 +77,7 @@ def test_plots_basic():
         duration_seconds=0.03,
         num_impulses=30,
         num_outs=2,
-        use_log_distribution=True,
+        log_distribution_strength=1.0,
         seed=1,
     )
 
@@ -135,7 +135,7 @@ def test__plot_correlogram_from_file():
         duration_seconds=duration_seconds,
         num_impulses=30,
         seed=1,
-        use_log_distribution=True,
+        log_distribution_strength=1.0,
     )
 
     vnd_output = vnd(input_signal)
@@ -176,6 +176,6 @@ def test__plot_correlogram_from_file():
         title='Viola White Noise Cross Correlogram',
     )
 
-    plot_polar_sample(wnd_output)
+    plot_polar_sample(vnd_output)
 
     assert True

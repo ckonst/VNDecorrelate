@@ -165,16 +165,19 @@ def MS_to_LR(input_signal: NDArray) -> None:
     input_signal[:, 1] = R
 
 
-def log_distribution(
+def generate_log_distribution(strength: float, size: int) -> NDArray:
+    return (10.0 ** (2 * strength * (np.arange(size + 1) / size))) / 100.0
+
+
+def apply_log_distribution(
     randoms: NDArray,
+    log_distribution: NDArray,
     log_impulse_intervals: NDArray,
-    cumsum_log_impulse_intervals: NDArray,
 ) -> NDArray:
     """Return the randomized position of the impulse in the FIR, distributing logarithmically towards the start of the filter."""
-    return (
-        np.round(randoms * (log_impulse_intervals[:-1] - 1))
-        + cumsum_log_impulse_intervals
-    ).astype(np.int32)
+    return (np.round(randoms * (log_distribution - 1)) + log_impulse_intervals).astype(
+        np.int32
+    )
 
 
 def uniform_density(
