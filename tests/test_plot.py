@@ -7,7 +7,11 @@ from vndecorrelate.decorrelation import (
     WhiteNoise,
     generate_velvet_noise,
 )
-from vndecorrelate.utils.dsp import cross_correlogram, sine_sweep
+from vndecorrelate.utils.dsp import (
+    cross_correlogram,
+    generate_decay_envelope,
+    sine_sweep,
+)
 from vndecorrelate.utils.plot import (
     plot_correlogram,
     plot_polar_sample,
@@ -20,6 +24,10 @@ def test_plots_basic():
     # simply run the main function to ensure no errors.
     sample_rate, sig_float32 = wavfile.read('audio/viola.wav')
 
+    segment_envelope = generate_decay_envelope(4, 0.5)
+
+    seed = 2
+
     plot_signal(
         generate_velvet_noise(
             sample_rate_hz=sample_rate,
@@ -28,7 +36,7 @@ def test_plots_basic():
             num_outs=1,
             log_distribution_strength=0.0,
             segment_envelope=(),
-            seed=1,
+            seed=seed,
         ),
         title='Basic Velvet Noise Sequence',
     )
@@ -40,7 +48,7 @@ def test_plots_basic():
             num_impulses=30,
             num_outs=1,
             log_distribution_strength=0.0,
-            seed=1,
+            seed=seed,
         ),
         title='Segmented Decaying Velvet Noise Sequence',
     )
@@ -51,8 +59,9 @@ def test_plots_basic():
             duration_seconds=0.03,
             num_impulses=30,
             num_outs=1,
-            log_distribution_strength=1.0,
-            seed=1,
+            log_distribution_strength=0.5,
+            segment_envelope=segment_envelope,
+            seed=seed,
         ),
         title='Segmented Decaying Log Distributed Velvet Noise Sequence',
     )
@@ -63,7 +72,7 @@ def test_plots_basic():
         num_impulses=30,
         num_outs=2,
         log_distribution_strength=1.0,
-        seed=1,
+        seed=seed,
     )
     result = vnd.decorrelate(sig_float32)
     vns = vnd.FIR
@@ -77,8 +86,9 @@ def test_plots_basic():
         duration_seconds=0.03,
         num_impulses=30,
         num_outs=2,
-        log_distribution_strength=1.0,
-        seed=1,
+        log_distribution_strength=0.5,
+        segment_envelope=segment_envelope,
+        seed=seed,
     )
 
     plot_signal(fir[:, 0], title='Generated Velvet Noise Sequence L')

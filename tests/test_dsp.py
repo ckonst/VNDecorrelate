@@ -5,14 +5,17 @@ from vndecorrelate.utils.dsp import (
     LR_to_MS,
     MS_to_LR,
     NormalizeMode,
+    apply_log_distribution,
     apply_stereo_width,
     cross_correlogram,
     encode_signal_to_side_channel,
+    generate_log_distribution,
     mono_to_stereo,
     peak_normalize,
     rms_normalize,
     stereo_to_mono,
     to_float32,
+    uniform_density,
 )
 
 
@@ -248,3 +251,35 @@ def test_cross_correlogram():
 
     assert ccg.shape[0] == 199  # 199 windows for a 2s signal at 10ms stride
     assert ccg.shape[1] == 1601  # 1601 lags for +/- 50ms at 16kHz
+
+
+def test__log_distribution_strength_zero():
+    log_distribution_strength = 0
+    num_impulses = 30
+    fir_length_samples = 3000
+
+    log_distribution = generate_log_distribution(
+        log_distribution_strength, num_impulses
+    )
+
+    # number of samples between each logarithmically distributed impulse
+    log_impulse_intervals = np.cumsum(log_distribution) - 1
+
+    log_impulse_intervals = log_impulse_intervals[:-1] * (
+        fir_length_samples / log_impulse_intervals[-1]
+    )
+
+    log_distribution = log_distribution[:-1]
+
+    # could seed an rng, but for ease of debugging use zero array.
+    randoms = np.zeros(num_impulses)
+
+    log_dist_randoms = apply_log_distribution(
+        randoms, log_distribution, log_impulse_intervals
+    )
+
+    uniform_randoms = uniform_density(
+        randoms, np.arange(num_impulses), fir_length_samples / num_impulses
+    )
+
+    assert np.array_equal(log_dist_randoms, uniform_randoms)

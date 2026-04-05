@@ -8,6 +8,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from vndecorrelate.utils.dsp import (
+    IDENTITY_ENVELOPE,
     LR_to_MS,
     MS_to_LR,
     apply_log_distribution,
@@ -378,6 +379,9 @@ class VelvetNoise(Decorrelator):
                 f'Velvet Noise Filter of length {self.fir_length_samples} with {self.num_impulses} impulses is not sparse. ({density=:.2f})\n'
                 '\tnum_impulses must be less than half the FIR length in samples.'
             )
+        # If segment_envelope is empty, use a single segment with no decay.
+        if not self.segment_envelope:
+            self.segment_envelope = IDENTITY_ENVELOPE
         self._velvet_noise = self._generate()
 
     def convolve(self, input_signal: NDArray) -> NDArray:
@@ -395,7 +399,7 @@ class VelvetNoise(Decorrelator):
                             segment_buffer[: -impulse_index or sig_len],
                             operator,  # either __isub__ or __iadd__
                         )(input_signal[impulse_index:, channel_index])
-                if self.segment_envelope:
+                if self.segment_envelope != IDENTITY_ENVELOPE:
                     segment_buffer *= self.segment_envelope[segment_index]
                 output_signal[:, channel_index] += segment_buffer
                 segment_buffer.fill(0)
@@ -467,16 +471,18 @@ class VelvetNoise(Decorrelator):
         rng = np.random.default_rng(self.seed)
 
         velvet_noise = _ParallelVelvetNoise(fir_length_samples=self.fir_length_samples)
-        num_segments = max(
-            len(self.segment_envelope), 1
-        )  # If segment_envelope is empty, use a single segment with no decay.
+        num_segments = len(self.segment_envelope)
 
         log_distribution = generate_log_distribution(
             self.log_distribution_strength, self.num_impulses
         )
 
-        # number of samples between each logarithmically distributed impulse
-        log_impulse_intervals = np.cumsum(log_distribution)
+        # Calculate number of samples between each logarithmically distributed impulse:
+        # Start by taking the cumulative sum, then shift left by 1 if we have a log distribution strength of 0.0
+        # This is done to be consistent with `uniform_density` i.e. we fix an off-by-one error in the uniform distribution case.
+        log_impulse_intervals = np.cumsum(log_distribution) - (
+            1.0 if self.log_distribution_strength == 0.0 else 0.0
+        )
 
         log_impulse_intervals = log_impulse_intervals[:-1] * (
             self.fir_length_samples / log_impulse_intervals[-1]
@@ -554,8 +560,12 @@ def generate_velvet_noise(
         log_distribution_strength, num_impulses
     )
 
-    # number of samples between each logarithmically distributed impulse
-    log_impulse_intervals = np.cumsum(log_distribution)
+    # Calculate number of samples between each logarithmically distributed impulse:
+    # Start by taking the cumulative sum, then shift left by 1 if we have a log distribution strength of 0.0
+    # This is done to be consistent with `uniform_density` i.e. we fix an off-by-one error in the uniform distribution case.
+    log_impulse_intervals = np.cumsum(log_distribution) - (
+        1.0 if log_distribution_strength == 0.0 else 0.0
+    )
 
     log_impulse_intervals = log_impulse_intervals[:-1] * (
         fir_length_samples / log_impulse_intervals[-1]

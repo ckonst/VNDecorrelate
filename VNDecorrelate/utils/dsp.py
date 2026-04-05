@@ -3,7 +3,9 @@ from enum import StrEnum
 import numpy as np
 from numpy.typing import NDArray
 
-EPSILON = 1e-10
+EPSILON: float = 1e-10
+
+IDENTITY_ENVELOPE: tuple[float] = (1.0,)
 
 
 class NormalizeMode(StrEnum):
@@ -166,7 +168,15 @@ def MS_to_LR(input_signal: NDArray) -> None:
 
 
 def generate_log_distribution(strength: float, size: int) -> NDArray:
-    return (10.0 ** (2 * strength * (np.arange(size + 1) / size))) / 100.0
+    """Return an `NDArray` of size: `size + 1` containing exponentially increasing values."""
+    return (
+        (10.0 ** (2.0 * strength * (np.arange(size + 1.0) / size)))
+        /
+        # Applying the strength term to the denominator helps with the uniform density case
+        # where `strength = 0.0` by reducing the normalization constant to 1.0
+        # to generate a sequence that increases linearly, while still parameterized by strength.
+        (100.0 * ((1.0 + (strength * 99.0)) / 100.0))
+    )
 
 
 def apply_log_distribution(
@@ -175,7 +185,7 @@ def apply_log_distribution(
     log_impulse_intervals: NDArray,
 ) -> NDArray:
     """Return the randomized position of the impulse in the FIR, distributing logarithmically towards the start of the filter."""
-    return (np.round(randoms * (log_distribution - 1)) + log_impulse_intervals).astype(
+    return np.round(randoms * (log_distribution - 1) + log_impulse_intervals).astype(
         np.int32
     )
 
@@ -291,3 +301,32 @@ def polar_coordinates(
             r /= r_max
 
     return r, theta
+
+
+def exponential_decay(t: float, k: float = 2) -> float:
+    """evaluate :math:`e^{-kt}`"""
+    return np.e ** (-k * t)
+
+
+def generate_decay_envelope(
+    num_segments: int, segment_position: float
+) -> tuple[float, ...]:
+    """_summary_
+
+    Parameters
+    ----------
+    num_segments : int
+        The number of segments to generate.
+
+    segment_position : float
+        A percent [0.0, 1.0] to shift the intra-segment sample location to.
+
+    Returns
+    -------
+    tuple[float, ...]:
+        A tuple of `num_segments` floats that define the decay envelope.
+    """
+    return tuple(
+        exponential_decay((t / num_segments) + (segment_position * 1 / num_segments))
+        for t in range(num_segments)
+    )

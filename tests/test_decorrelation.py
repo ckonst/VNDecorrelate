@@ -145,7 +145,7 @@ def test__velvet_noise_decorrelation_segment_envelope():
     assert output_signal.shape[0] == 1000
     assert output_signal.shape[1] == 2
 
-    vnd.segment_envelope = ()
+    vnd.segment_envelope = (1.0,)
     output_signal = vnd(input_signal)
 
     assert output_signal.shape[0] == 1000
