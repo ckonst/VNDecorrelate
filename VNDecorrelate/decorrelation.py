@@ -473,6 +473,7 @@ class VelvetNoise(Decorrelator):
         velvet_noise = _ParallelVelvetNoise(fir_length_samples=self.fir_length_samples)
         num_segments = len(self.segment_envelope)
 
+        # Array of size (num_impulses + 1) increasing exponentially from [0, 1.0]
         log_distribution = generate_log_distribution(
             self.log_distribution_strength, self.num_impulses
         )
@@ -480,15 +481,12 @@ class VelvetNoise(Decorrelator):
         # Calculate number of samples between each logarithmically distributed impulse:
         # Start by taking the cumulative sum, then shift left by 1 if we have a log distribution strength of 0.0
         # This is done to be consistent with `uniform_density` i.e. we fix an off-by-one error in the uniform distribution case.
-        log_impulse_intervals = np.cumsum(log_distribution) - (
-            1.0 if self.log_distribution_strength == 0.0 else 0.0
-        )
+        # Lastly, scale the cumulative sum by the length of the filter.
+        log_impulse_intervals = np.cumsum(log_distribution)
+        if self.log_distribution_strength == 0.0:
+            log_impulse_intervals -= 1.0
 
-        log_impulse_intervals = log_impulse_intervals[:-1] * (
-            self.fir_length_samples / log_impulse_intervals[-1]
-        )
-
-        log_distribution = log_distribution[:-1]
+        log_impulse_intervals *= self.fir_length_samples / log_impulse_intervals[-1]
 
         impulse_signs = rng.uniform(
             low=0,
@@ -498,15 +496,19 @@ class VelvetNoise(Decorrelator):
         impulse_offsets = rng.uniform(
             low=0,
             high=1,
-            size=(self.num_impulses, self.num_outs),
+            # Rather than removing the unused last value via copy, just increase the size to match the impulse intervals.
+            size=(self.num_impulses + 1, self.num_outs),
         )
         signs = (2 * np.round(impulse_signs)) - 1
+
+        average_impulse_interval = self.sample_rate_hz / self.density
 
         for channel_index in range(self.num_outs):
             fir_indexes = apply_log_distribution(
                 impulse_offsets[:, channel_index],
                 log_distribution,
                 log_impulse_intervals,
+                average_impulse_interval,
             )
 
             sequence = _VelvetNoiseSequence.create(num_segments=num_segments)
@@ -556,6 +558,7 @@ def generate_velvet_noise(
         segment_envelope = (1.0,)
     num_segments = len(segment_envelope)
 
+    # Array of size (num_impulses + 1) increasing exponentially from [0, 1.0]
     log_distribution = generate_log_distribution(
         log_distribution_strength, num_impulses
     )
@@ -563,15 +566,11 @@ def generate_velvet_noise(
     # Calculate number of samples between each logarithmically distributed impulse:
     # Start by taking the cumulative sum, then shift left by 1 if we have a log distribution strength of 0.0
     # This is done to be consistent with `uniform_density` i.e. we fix an off-by-one error in the uniform distribution case.
-    log_impulse_intervals = np.cumsum(log_distribution) - (
-        1.0 if log_distribution_strength == 0.0 else 0.0
-    )
+    log_impulse_intervals = np.cumsum(log_distribution)
+    if log_distribution_strength == 0.0:
+        log_impulse_intervals -= 1.0
 
-    log_impulse_intervals = log_impulse_intervals[:-1] * (
-        fir_length_samples / log_impulse_intervals[-1]
-    )
-
-    log_distribution = log_distribution[:-1]
+    log_impulse_intervals *= fir_length_samples / log_impulse_intervals[-1]
 
     impulse_signs = rng.uniform(
         low=0,
@@ -581,15 +580,19 @@ def generate_velvet_noise(
     impulse_offsets = rng.uniform(
         low=0,
         high=1,
-        size=(num_impulses, num_outs),
+        # Rather than removing the unused last value via copy, just increase the size to match the impulse intervals.
+        size=(num_impulses + 1, num_outs),
     )
     signs = (2 * np.round(impulse_signs)) - 1
+
+    average_impulse_interval = sample_rate_hz / (num_impulses / duration_seconds)
 
     for channel_index in range(num_outs):
         fir_indexes = apply_log_distribution(
             impulse_offsets[:, channel_index],
             log_distribution,
             log_impulse_intervals,
+            average_impulse_interval,
         )
 
         for impulse_index in range(num_impulses):

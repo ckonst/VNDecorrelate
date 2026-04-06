@@ -138,7 +138,7 @@ def LR_to_MS(input_signal: NDArray) -> None:
     """
     check_stereo(input_signal)
     M = np.sum(input_signal, axis=1) * 0.5
-    # diff does col 1 - col 0, so swap columns to get M - S
+    # diff computes col 1 - col 0, so swap columns to get M - S
     S = np.diff(input_signal[:, [1, 0]], axis=1).squeeze() * 0.5
     input_signal[:, 0] = M
     input_signal[:, 1] = S
@@ -168,7 +168,10 @@ def MS_to_LR(input_signal: NDArray) -> None:
 
 
 def generate_log_distribution(strength: float, size: int) -> NDArray:
-    """Return an `NDArray` of size: `size + 1` containing exponentially increasing values."""
+    """Return an `NDArray` of size: `size + 1` containing exponentially increasing values.
+
+    The `strength` parameter controls how much the values increase towards the end of the array, where 0.0 means no increase (uniform distribution) and 1.0 means a strong increase (logarithmic distribution).
+    """
     return (
         (10.0 ** (2.0 * strength * (np.arange(size + 1.0) / size)))
         /
@@ -183,11 +186,20 @@ def apply_log_distribution(
     randoms: NDArray,
     log_distribution: NDArray,
     log_impulse_intervals: NDArray,
+    jitter: float,
 ) -> NDArray:
-    """Return the randomized position of the impulse in the FIR, distributing logarithmically towards the start of the filter."""
-    return np.round(randoms * (log_distribution - 1) + log_impulse_intervals).astype(
-        np.int32
-    )
+    """Return the randomized position of the impulse in the FIR, distributing logarithmically towards the start of the filter.
+
+    The `log_distribution` and `log_impulse_intervals` should be precomputed with `generate_log_distribution` and the cumulative sum of the impulse intervals, respectively.
+
+    The `randoms` should be uniformly distributed random values between 0 and 1, of the same shape as `log_distribution` and `log_impulse_intervals`.
+
+    The `jitter` parameter controls how much the random values can affect the final position of the impulses, where 0.0 means no jitter.
+    Typically should be set to the average impulse interval to ensure that the random values can affect the position of the impulses across the entire filter, while still preserving the overall logarithmic distribution.
+    """
+    return np.round(
+        randoms * (log_distribution * jitter - 1) + log_impulse_intervals
+    ).astype(np.int32)
 
 
 def uniform_density(
@@ -195,7 +207,16 @@ def uniform_density(
     impulse_indexes: NDArray,
     impulse_interval: float,
 ) -> int:
-    """Return the randomized position of the impulse in the FIR, preserving a uniform density across the filter."""
+    """Return the randomized position of the impulse in the FIR, preserving a uniform density across the filter.
+
+    The `impulse_indexes` should be precomputed with `np.arange`, where the first impulse is at index 0.
+
+    The `randoms` should be uniformly distributed random values between 0 and 1, of the same shape as `impulse_indexes`.
+
+    The `impulse_interval` should be the average interval between impulses, which is the total filter length divided by the number of impulses.
+
+    The `randoms` are scaled by the `impulse_interval` to ensure that the random values can affect the position of the impulses across the entire filter, while still preserving the overall uniform distribution.
+    """
     return np.round(
         impulse_indexes * impulse_interval + randoms * (impulse_interval - 1)
     ).astype(np.int32)
@@ -277,7 +298,7 @@ def sine_sweep(
     duration_seconds: float,
     sample_rate_hz: int = 44100,
 ) -> NDArray:
-    """Generate a sine sweep signal from start_freq_hz to end_freq_hz over duration_seconds."""
+    """Generate a sine sweep signal from `start_freq_hz` to `end_freq_hz` over `duration_seconds`."""
     t = np.linspace(
         0, duration_seconds, int(sample_rate_hz * duration_seconds), endpoint=False
     )

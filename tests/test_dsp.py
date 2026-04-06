@@ -275,7 +275,7 @@ def test__log_distribution_strength_zero():
     randoms = np.zeros(num_impulses)
 
     log_dist_randoms = apply_log_distribution(
-        randoms, log_distribution, log_impulse_intervals
+        randoms, log_distribution, log_impulse_intervals, jitter=1.0
     )
 
     uniform_randoms = uniform_density(
