@@ -373,30 +373,29 @@ def sine_sweep(
 
 def polar_coordinates(
     left: NDArray, right: NDArray, normalize: bool = True
-) -> tuple[NDArray, NDArray]:
-    """Return each sample of the left and right channels as polar coordinates: r, theta."""
+) -> tuple[NDArray, NDArray, NDArray]:
+    """Return each sample of the left and right channels as polar coordinates with amplitude weights: ``(radii, thetas, weights)``."""
     # atan2 gives angle in radians; the (L-R, L+R) formulation
-    # naturally spans -pi/2 ... +pi/2 (the 180° stereo field)
-    theta = np.arctan2(left - right, left + right)  # radians, -π/2 to +π/2
-    r = np.sqrt(left**2 + right**2)  # magnitude [0, √2]
+    # naturally spans [-pi/2, pi/2] (the 180° stereo field)
+    thetas = np.arctan2(left - right, left + right)  # radians, [-π/2, +π/2]
+    radii = np.sqrt(left**2 + right**2)  # magnitude [0, √2]
+    weights = radii / (radii.sum() + EPSILON)  # amplitude-weights
 
     if normalize:
-        r_max = r.max()
-        if r_max > 0:
-            r /= r_max
+        radii /= radii.max() + EPSILON
 
-    return r, theta
+    return radii, thetas, weights
 
 
 def exponential_decay(t: float, k: float = 2) -> float:
-    """evaluate :math:`e^{-kt}`"""
+    """evaluate :math:`e^{-kt}` for a given time `t` and decay rate `k`."""
     return np.e ** (-k * t)
 
 
 def generate_decay_envelope(
     num_segments: int, segment_position: float
 ) -> tuple[float, ...]:
-    """_summary_
+    """Generate a decay envelope with `num_segments` segments, where the intra-segment sample location is shifted by `segment_position`.
 
     Parameters
     ----------
