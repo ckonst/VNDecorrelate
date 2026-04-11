@@ -253,7 +253,7 @@ def test_cross_correlogram():
     assert ccg.shape[1] == 1601  # 1601 lags for +/- 50ms at 16kHz
 
 
-def test__log_distribution_strength_zero():
+def test__log_distribution__zero_strength():
     log_distribution_strength = 0
     num_impulses = 30
     fir_length_samples = 3000
@@ -265,21 +265,53 @@ def test__log_distribution_strength_zero():
     # number of samples between each logarithmically distributed impulse
     log_impulse_intervals = np.cumsum(log_distribution) - 1
 
-    log_impulse_intervals = log_impulse_intervals[:-1] * (
-        fir_length_samples / log_impulse_intervals[-1]
-    )
+    log_impulse_intervals *= fir_length_samples / log_impulse_intervals[-1]
 
-    log_distribution = log_distribution[:-1]
+    rng = np.random.default_rng(1)
 
-    # could seed an rng, but for ease of debugging use zero array.
-    randoms = np.zeros(num_impulses)
+    randoms = rng.uniform(0, 1, num_impulses + 1)
+
+    average_impulse_interval = fir_length_samples / num_impulses
 
     log_dist_randoms = apply_log_distribution(
-        randoms, log_distribution, log_impulse_intervals, jitter=1.0
+        randoms,
+        log_distribution,
+        log_impulse_intervals,
+        jitter=average_impulse_interval,
     )
 
     uniform_randoms = uniform_density(
-        randoms, np.arange(num_impulses), fir_length_samples / num_impulses
+        randoms, np.arange(num_impulses + 1), average_impulse_interval
     )
 
-    assert np.array_equal(log_dist_randoms, uniform_randoms)
+    assert np.array_equal(log_dist_randoms[:-1], uniform_randoms[:-1])
+
+
+def test__log_distribution__zero_strength_zero_jitter():
+    log_distribution_strength = 0.0
+    num_impulses = 30
+    fir_length_samples = 3000
+
+    log_distribution = generate_log_distribution(
+        log_distribution_strength, num_impulses
+    )
+
+    # number of samples between each logarithmically distributed impulse
+    log_impulse_intervals = np.cumsum(log_distribution) - 1
+
+    log_impulse_intervals *= fir_length_samples / log_impulse_intervals[-1]
+
+    rng = np.random.default_rng(1)
+
+    randoms = rng.uniform(0, 1, num_impulses + 1)
+
+    log_dist_randoms = apply_log_distribution(
+        randoms,
+        log_distribution,
+        log_impulse_intervals,
+        jitter=0.0,
+    )
+
+    assert np.array_equal(
+        log_dist_randoms[:-1], log_impulse_intervals[:-1].astype(np.int32)
+    )

@@ -168,9 +168,28 @@ def MS_to_LR(input_signal: NDArray) -> None:
 
 
 def generate_log_distribution(strength: float, size: int) -> NDArray:
-    """Return an `NDArray` of size: `size + 1` containing exponentially increasing values.
+    """Generate an exponentially increasing distribution array.
 
-    The `strength` parameter controls how much the values increase towards the end of the array, where 0.0 means no increase (uniform distribution) and 1.0 means a strong increase (logarithmic distribution).
+    Parameters
+    ----------
+    strength : float
+        Controls how strongly the values increase towards the end of the
+        array. ``0.0`` produces a uniform distribution, ``1.0`` produces
+        a strong (logarithmic) increase.
+    size : int
+        Number of intervals; the returned array has length ``size + 1``.
+
+    Returns
+    -------
+    ndarray
+        Array of length ``size + 1`` containing exponentially increasing
+        values parameterized by ``strength``.
+
+    Notes
+    -----
+    The implementation scales and normalizes the exponential curve so that
+    the distribution varies smoothly between uniform and strongly
+    concentrated shapes as ``strength`` moves from 0.0 to 1.0.
     """
     return (
         (10.0 ** (2.0 * strength * (np.arange(size + 1.0) / size)))
@@ -187,18 +206,47 @@ def apply_log_distribution(
     log_distribution: NDArray,
     log_impulse_intervals: NDArray,
     jitter: float,
-) -> NDArray:
-    """Return the randomized position of the impulse in the FIR, distributing logarithmically towards the start of the filter.
+) -> NDArray[np.int32]:
+    """Compute randomized impulse positions using a logarithmic distribution.
 
-    The `log_distribution` and `log_impulse_intervals` should be precomputed with `generate_log_distribution` and the cumulative sum of the impulse intervals, respectively.
+    Parameters
+    ----------
+    randoms : ndarray
+        Uniform random values in ``[0, 1]``; shape must match
+        ``log_distribution`` and ``log_impulse_intervals``.
+    log_distribution : ndarray
+        Precomputed distribution weights from
+        :func:`generate_log_distribution` describing how density varies
+        across the filter.
+    log_impulse_intervals : ndarray
+        Cumulative impulse interval positions corresponding to the
+        ``log_distribution`` values.
+    jitter : float
+        Scale applied to ``log_distribution`` that controls how much the
+        random offsets can perturb each impulse position. A value of 0.0 means no jitter.
+        Typical usage is to set this to the average impulse interval (samples per impulse).
 
-    The `randoms` should be uniformly distributed random values between 0 and 1, of the same shape as `log_distribution` and `log_impulse_intervals`.
+    Returns
+    -------
+    ndarray of int32
+        Rounded sample indices for each randomized impulse position,
+        suitable for indexing the FIR.
 
-    The `jitter` parameter controls how much the random values can affect the final position of the impulses, where 0.0 means no jitter.
-    Typically should be set to the average impulse interval to ensure that the random values can affect the position of the impulses across the entire filter, while still preserving the overall logarithmic distribution.
+    Notes
+    -----
+    The function computes positions as ``round(randoms * np.fmax(0.0, log_distribution *
+    jitter - 1) + log_impulse_intervals)`` and casts the result to
+    ``np.int32``.
+
+    ``np.fmax`` is used to ensure that the jitter does not cause negative scaling of the random values,
+    which could place impulses at the end of the filter instead of the beginning.
+
+    The random values are scaled by the jitter-modified distribution to
+    allow for more or less deviation from the base logarithmic positions,
+    while ensuring that the impulses remain distributed according to the logarithmic density profile.
     """
     return np.round(
-        randoms * (log_distribution * jitter - 1) + log_impulse_intervals
+        randoms * np.fmax(0.0, log_distribution * jitter - 1) + log_impulse_intervals
     ).astype(np.int32)
 
 
@@ -206,16 +254,32 @@ def uniform_density(
     randoms: NDArray,
     impulse_indexes: NDArray,
     impulse_interval: float,
-) -> int:
-    """Return the randomized position of the impulse in the FIR, preserving a uniform density across the filter.
+) -> NDArray[np.int32]:
+    """Return randomized impulse positions in an FIR with uniform density.
 
-    The `impulse_indexes` should be precomputed with `np.arange`, where the first impulse is at index 0.
+    Parameters
+    ----------
+    randoms : ndarray
+        Uniform random values in the interval [0, 1], with the same shape
+        as ``impulse_indexes``.
+    impulse_indexes : ndarray
+        Precomputed impulse indices (for example ``np.arange(n_impulses)``),
+        where the first impulse is at index ``0``.
+    impulse_interval : float
+        Average interval between impulses (filter length divided by the
+        number of impulses).
 
-    The `randoms` should be uniformly distributed random values between 0 and 1, of the same shape as `impulse_indexes`.
+    Returns
+    -------
+    positions : ndarray of int32
+        Rounded sample indices for each impulse, suitable for indexing the
+        FIR. The array has dtype ``np.int32``.
 
-    The `impulse_interval` should be the average interval between impulses, which is the total filter length divided by the number of impulses.
-
-    The `randoms` are scaled by the `impulse_interval` to ensure that the random values can affect the position of the impulses across the entire filter, while still preserving the overall uniform distribution.
+    Notes
+    -----
+    The random values are scaled by ``impulse_interval`` so that impulses
+    remain uniformly distributed across the filter while each position may
+    be shifted by up to ``impulse_interval - 1`` samples.
     """
     return np.round(
         impulse_indexes * impulse_interval + randoms * (impulse_interval - 1)
