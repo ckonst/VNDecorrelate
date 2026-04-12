@@ -48,11 +48,6 @@ def encode_signal_to_side_channel(
     decorrelated_signal : NDArray
         The decorrelated signal.
 
-    Returns
-    -------
-    NDArray
-        The newly-encoded signal.
-
     """
     check_stereo(input_signal)
     check_stereo(decorrelated_signal)

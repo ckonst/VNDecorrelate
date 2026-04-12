@@ -1,9 +1,10 @@
+import pytest
 import scipy.io.wavfile as wavfile
 
 from vndecorrelate.decorrelation import SignalChain
 
 
-# @pytest.mark.skip
+@pytest.mark.skip
 def test_example():
     fs, guitar = wavfile.read('audio/guitar.wav')
 

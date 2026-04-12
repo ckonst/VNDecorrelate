@@ -420,6 +420,7 @@ class VelvetNoise(Decorrelator):
             input_signal = mono_to_stereo(input_signal)
 
         output_signal = self.convolve(input_signal)
+        output_signal[:, 0] = input_signal[:, 0]
         encode_signal_to_side_channel(input_signal, output_signal)
 
         if self.width is not None:

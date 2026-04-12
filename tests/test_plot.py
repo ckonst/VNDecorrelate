@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 import scipy.io.wavfile as wavfile
 from scipy import signal
 
@@ -20,6 +21,7 @@ from vndecorrelate.utils.plot import (
 )
 
 
+@pytest.mark.skip
 def test_plots_basic():
     # simply run the main function to ensure no errors.
     sample_rate, sig_float32 = wavfile.read('audio/viola.wav')

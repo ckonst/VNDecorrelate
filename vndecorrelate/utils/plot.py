@@ -83,7 +83,7 @@ def plot_polar_sample(
     ax.set_yticklabels(())
 
     left, right = input_signal.T
-    r, theta = polar_coordinates(left, right)
+    r, theta, _ = polar_coordinates(left, right)
 
     if heatmap:
         bins = (
