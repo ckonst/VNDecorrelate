@@ -153,16 +153,16 @@ class SignalChain(SignalProcessor):
         self._hot = True
 
 
+class DecorrelateMode(StrEnum):
+    LR = 'LR'  # Left-Right
+    MS = 'MS'  # Mid-Side
+
+
 # ----------------------------------------------------------------------------
 #
 # Haas Effect Decorrelator
 #
 # ----------------------------------------------------------------------------
-
-
-class HaasEffectMode(StrEnum):
-    LR = 'LR'  # Left-Right
-    MS = 'MS'  # Mid-Side
 
 
 @dataclass(kw_only=True, slots=True)
@@ -191,7 +191,7 @@ class HaasEffect(Decorrelator):
 
     delayed_channel: int = 0
     delay_time_seconds: float = 0.02
-    mode: HaasEffectMode = HaasEffectMode.LR
+    mode: DecorrelateMode = DecorrelateMode.LR
 
     def decorrelate(self, input_signal: NDArray) -> NDArray:
         """Perform a Haas Effect decorrelation on input_signal."""
@@ -218,14 +218,14 @@ class HaasEffect(Decorrelator):
 
         # side channel will be silent if the signal is mono,
         # since we already duplicated to stereo, we'll interpret that signal as Mid-Side.
-        if self.mode == HaasEffectMode.MS and not mono:
+        if self.mode == DecorrelateMode.MS and not mono:
             LR_to_MS(output_signal)
 
         output_signal[:, self.delayed_channel] = np.roll(
             output_signal[:, self.delayed_channel], delay_len_samples, axis=0
         )
 
-        if self.mode == HaasEffectMode.MS:
+        if self.mode == DecorrelateMode.MS:
             MS_to_LR(output_signal)
             if mono:
                 # we duplicated the mono channel, here we compensate for it.
@@ -353,6 +353,8 @@ class VelvetNoise(Decorrelator):
     num_impulses: int = 30
     segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2)
     log_distribution_strength: float = 1.0
+    normalizer: Callable[[NDArray, NDArray], None] | None = rms_normalize
+    mode: DecorrelateMode = DecorrelateMode.MS
     seed: int | None = None
 
     # _velvet_noise maps each channel to a list of equal length segments, determined by segment_envelope.
@@ -420,13 +422,17 @@ class VelvetNoise(Decorrelator):
             input_signal = mono_to_stereo(input_signal)
 
         output_signal = self.convolve(input_signal)
-        output_signal[:, 0] = input_signal[:, 0]
-        encode_signal_to_side_channel(input_signal, output_signal)
+
+        if self.mode == DecorrelateMode.MS:
+            encode_signal_to_side_channel(input_signal, output_signal)
+        else:
+            output_signal[:, 1] = input_signal[:, 1]
 
         if self.width is not None:
             apply_stereo_width(output_signal, self.width)
 
-        rms_normalize(input_signal, output_signal)
+        if self.normalizer:
+            self.normalizer(input_signal, output_signal)
 
         return output_signal
 

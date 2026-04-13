@@ -6,6 +6,18 @@ from vndecorrelate.decorrelation import Decorrelator, VelvetNoise
 from vndecorrelate.utils.dsp import EPSILON, polar_coordinates
 
 
+def left_right_correlation_objective(
+    input_signal: NDArray,
+    decorrelator: Decorrelator,
+) -> float:
+    output_signal = decorrelator.decorrelate(input_signal)
+
+    # left-right correlation: square of dot product => optimize to zero
+    abs_dot_product = np.dot(output_signal[:, 0], output_signal[:, 1]) ** 2
+
+    return abs_dot_product
+
+
 def symmetry_aware_objective(
     input_signal: NDArray,
     decorrelator: Decorrelator,
@@ -35,24 +47,42 @@ def symmetry_aware_objective(
     spread = float(np.sum(weights * thetas**2))
 
     # 1st odd moment: weighted mean => optimize to zero
-    mean_theta = float(np.sum(weights * thetas))
+    mean_theta_penalty = lambda_mean * float(np.sum(weights * thetas)) ** 2
 
     # 3rd odd moment: weighted skewness => optimize to zero
     # normalize by the proportional amount of spread in the distribution
-    skewness = float(np.sum(weights * thetas**3)) / (max(spread, EPSILON) ** 1.5)
+    skewness_penalty = (
+        lambda_skew
+        * (float(np.sum(weights * thetas**3)) / (max(spread, EPSILON) ** 1.5)) ** 2
+    )
 
     # Constraint: max angular exceedance
     violation = float(np.max(np.abs(thetas)) - angle_limit)
     constraint_penalty = lambda_penalty * max(0.0, violation) ** 2
 
-    objective = (
-        spread
-        - lambda_mean * mean_theta**2
-        - lambda_skew * skewness**2
-        - constraint_penalty
-    )
+    objective = spread - mean_theta_penalty - skewness_penalty - constraint_penalty
 
     return -objective  # minimizer convention
+
+
+def grid_scan(input_signal: NDArray, decorrelators: list[Decorrelator]) -> NDArray:
+    return np.array(
+        [
+            left_right_correlation_objective(input_signal, decorrelator)
+            for decorrelator in decorrelators
+        ]
+    )
+
+
+def get_local_minima(scores: NDArray, grid_size: int) -> list[int]:
+    local_minima = [
+        i
+        for i in range(1, grid_size - 1)
+        if scores[i] < scores[i - 1] and scores[i] < scores[i + 1]
+    ]
+    if not local_minima:
+        return [int(np.argmin(scores))]
+    return local_minima
 
 
 def optimize_velvet_noise(
@@ -62,9 +92,6 @@ def optimize_velvet_noise(
     num_impulses: int,
     seed: int = 1,
     grid_size: int = 400,
-    angle_limit: float = np.pi / 4,
-    lambda_mean: float = 5.0,
-    lambda_skew: float = 2.0,
 ) -> float:
     # kappa: concentration of impulses toward start of sequence
     # TODO: compute grid_size based on nyquist criterion applied to kappa-domain landscape
@@ -76,54 +103,39 @@ def optimize_velvet_noise(
             duration_seconds=duration_seconds,
             num_impulses=num_impulses,
             log_distribution_strength=kappa,
+            normalizer=None,  # speed up optimization by skipping normalization
+            mode='LR',
             seed=seed,
         )
         for kappa in kappas
     ]
 
-    # --- Grid scan ---
-    scores = np.array(
-        [
-            symmetry_aware_objective(
-                input_signal,
-                velvet_noise,
-                angle_limit=angle_limit,
-                lambda_mean=lambda_mean,
-                lambda_skew=lambda_skew,
-            )
-            for velvet_noise in velvet_noise_decorrelators
-        ]
-    )
+    print('Starting Grid Scan')
+    scores = grid_scan(input_signal, velvet_noise_decorrelators)
 
     # Identify local minima (best candidate regions)
     # A local min at index i: scores[i] < scores[i-1] and scores[i] < scores[i+1]
-    local_minima = [
-        i
-        for i in range(1, grid_size - 1)
-        if scores[i] < scores[i - 1] and scores[i] < scores[i + 1]
-    ]
-    if not local_minima:
-        local_minima = [int(np.argmin(scores))]
+    local_minima = get_local_minima(scores, grid_size)
 
     best_kappa, best_score = 0.0, np.inf
 
+    print('Starting Local Minima optimization')
     for i in local_minima:
         low = kappas[max(0, i - 1)]
         high = kappas[min(grid_size - 1, i + 1)]
 
         result = minimize_scalar(
-            lambda kappa: symmetry_aware_objective(
+            lambda kappa: left_right_correlation_objective(
                 input_signal,
                 VelvetNoise(
                     sample_rate_hz=sample_rate_hz,
                     duration_seconds=duration_seconds,
                     num_impulses=num_impulses,
                     log_distribution_strength=kappa,
+                    normalizer=None,  # speed up optimization by skipping normalization
+                    mode='LR',
                     seed=seed,
                 ),
-                angle_limit=angle_limit,
-                lambda_mean=lambda_mean,
-                lambda_skew=lambda_skew,
             ),
             bounds=(low, high),
             method='bounded',
