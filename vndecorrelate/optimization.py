@@ -2,7 +2,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import minimize_scalar
 
-from vndecorrelate.decorrelation import Decorrelator, VelvetNoise
+from vndecorrelate.decorrelation import Decorrelator, HaasEffect, VelvetNoise
 from vndecorrelate.utils.dsp import EPSILON, polar_coordinates
 
 
@@ -41,7 +41,9 @@ def symmetry_aware_objective(
 
     output_signal = decorrelator.decorrelate(input_signal)
 
-    thetas, radii, weights = polar_coordinates(output_signal[:, 0], output_signal[:, 1])
+    radii, thetas, weights = polar_coordinates(
+        output_signal[:, 0], output_signal[:, 1], normalize=False
+    )
 
     # Even moment: variance => maximize spread
     spread = float(np.sum(weights * thetas**2))
@@ -85,6 +87,60 @@ def get_local_minima(scores: NDArray, grid_size: int) -> list[int]:
     return local_minima
 
 
+def optimize_haas_delay(
+    input_signal: NDArray,
+    sample_rate_hz: int,
+    max_delay_seconds: int,
+    grid_size: int = 400,
+) -> float:
+    # tau: length of delay for channel
+    # TODO: compute grid_size based on nyquist criterion applied to tau-domain landscape
+    taus = np.linspace(0.0, max_delay_seconds, grid_size)
+
+    haas_effect_decorrelators = [
+        HaasEffect(
+            sample_rate_hz=sample_rate_hz,
+            delay_time_seconds=tau,
+            mode='LR',
+        )
+        for tau in taus
+    ]
+
+    print('Starting Grid Scan')
+    scores = grid_scan(input_signal, haas_effect_decorrelators)
+
+    # Identify local minima (best candidate regions)
+    # A local min at index i: scores[i] < scores[i-1] and scores[i] < scores[i+1]
+    local_minima = get_local_minima(scores, grid_size)
+
+    best_tau, best_score = 0.0, np.inf
+
+    print('Starting Local Minima optimization')
+    for i in local_minima:
+        low = taus[max(0, i - 1)]
+        high = taus[min(grid_size - 1, i + 1)]
+
+        result = minimize_scalar(
+            lambda tau: symmetry_aware_objective(
+                input_signal,
+                HaasEffect(
+                    sample_rate_hz=sample_rate_hz,
+                    delay_time_seconds=tau,
+                    mode='LR',
+                ),
+            ),
+            bounds=(low, high),
+            method='bounded',
+            options={'xatol': 1e-4},
+        )
+
+        if result.fun < best_score:
+            best_score = result.fun
+            best_tau = result.x
+
+    return best_tau
+
+
 def optimize_velvet_noise(
     input_signal: NDArray,
     sample_rate_hz: int,
@@ -104,6 +160,7 @@ def optimize_velvet_noise(
             num_impulses=num_impulses,
             log_distribution_strength=kappa,
             normalizer=None,  # speed up optimization by skipping normalization
+            filtered_channels=(0,),
             mode='LR',
             seed=seed,
         )
@@ -125,7 +182,7 @@ def optimize_velvet_noise(
         high = kappas[min(grid_size - 1, i + 1)]
 
         result = minimize_scalar(
-            lambda kappa: left_right_correlation_objective(
+            lambda kappa: symmetry_aware_objective(
                 input_signal,
                 VelvetNoise(
                     sample_rate_hz=sample_rate_hz,
@@ -133,6 +190,7 @@ def optimize_velvet_noise(
                     num_impulses=num_impulses,
                     log_distribution_strength=kappa,
                     normalizer=None,  # speed up optimization by skipping normalization
+                    filtered_channels=(0,),
                     mode='LR',
                     seed=seed,
                 ),

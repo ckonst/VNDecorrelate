@@ -354,6 +354,7 @@ class VelvetNoise(Decorrelator):
     segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2)
     log_distribution_strength: float = 1.0
     normalizer: Callable[[NDArray, NDArray], None] | None = rms_normalize
+    filtered_channels: tuple[int, ...] = 0, 1
     mode: DecorrelateMode = DecorrelateMode.MS
     seed: int | None = None
 
@@ -393,6 +394,9 @@ class VelvetNoise(Decorrelator):
         output_signal = np.zeros((sig_len, self.num_outs), dtype=np.float32)
 
         for channel_index, channel_segments in enumerate(self.velvet_noise):
+            if channel_index not in self.filtered_channels:
+                output_signal[:, channel_index] = input_signal[:, channel_index]
+                continue
             for segment_index, segment in enumerate(channel_segments):
                 for signed_indexes, operator in segment:
                     for impulse_index in signed_indexes:
@@ -425,8 +429,6 @@ class VelvetNoise(Decorrelator):
 
         if self.mode == DecorrelateMode.MS:
             encode_signal_to_side_channel(input_signal, output_signal)
-        else:
-            output_signal[:, 1] = input_signal[:, 1]
 
         if self.width is not None:
             apply_stereo_width(output_signal, self.width)

@@ -1,11 +1,13 @@
+import pytest
 import scipy.io.wavfile as wavfile
 
-from vndecorrelate.decorrelation import VelvetNoise
-from vndecorrelate.optimization import optimize_velvet_noise
+from vndecorrelate.decorrelation import HaasEffect, VelvetNoise
+from vndecorrelate.optimization import optimize_haas_delay, optimize_velvet_noise
 from vndecorrelate.utils.dsp import mono_to_stereo
 from vndecorrelate.utils.plot import plot_polar_sample, plot_signal
 
 
+@pytest.mark.skip
 def test__optimize_velvet_noise():
     sample_rate_hz, input_signal = wavfile.read('audio/pop_shuffle.wav')
 
@@ -26,6 +28,7 @@ def test__optimize_velvet_noise():
         duration_seconds=duration_seconds,
         num_impulses=num_impulses,
         log_distribution_strength=kappa,
+        filtered_channels=(0,),
         mode='LR',
         seed=1,
     )
@@ -43,4 +46,29 @@ def test__optimize_velvet_noise():
     plot_polar_sample(output_signal, title='VN Optimized Vectorscope')
 
 
-test__optimize_velvet_noise()
+@pytest.mark.skip
+def test__optimize_haas_delay():
+    sample_rate_hz, input_signal = wavfile.read('audio/pop_shuffle.wav')
+
+    if input_signal.ndim == 1:
+        input_signal = mono_to_stereo(input_signal)
+
+    max_delay_seconds = 0.03
+
+    tau = optimize_haas_delay(
+        input_signal,
+        sample_rate_hz,
+        max_delay_seconds=max_delay_seconds,
+    )
+    hed = HaasEffect(
+        sample_rate_hz=sample_rate_hz,
+        delay_time_seconds=tau,
+        mode='LR',
+    )
+    output_signal = hed.decorrelate(input_signal)
+
+    print(f'Optimized Tau: {tau}')
+
+    wavfile.write('audio/pop_shuffle_opt_haas.wav', sample_rate_hz, output_signal)
+
+    plot_polar_sample(output_signal, title='HE Optimized Vectorscope')
