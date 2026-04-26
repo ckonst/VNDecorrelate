@@ -3,6 +3,7 @@ import pytest
 import scipy.io.wavfile as wavfile
 from scipy import signal
 
+from tests import IN_GHA
 from vndecorrelate.decorrelation import (
     VelvetNoise,
     WhiteNoise,
@@ -21,7 +22,7 @@ from vndecorrelate.utils.plot import (
 )
 
 
-@pytest.mark.skip
+@pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
 def test_plots_basic():
     # simply run the main function to ensure no errors.
     sample_rate, sig_float32 = wavfile.read('audio/viola.wav')
@@ -102,6 +103,7 @@ def test_plots_basic():
     assert True
 
 
+@pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
 def test_plot_signal():
     x = np.random.uniform(size=100)
     plot_signal(x)
@@ -109,6 +111,7 @@ def test_plot_signal():
     assert True
 
 
+@pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
 def test__plot_sine_sweep_correlogram():
     fs = 16000
     _sine_sweep = sine_sweep(
@@ -137,6 +140,7 @@ def test__plot_sine_sweep_correlogram():
     assert True
 
 
+@pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
 def test__plot_correlogram_from_file():
     fs, input_signal = wavfile.read('audio/viola.wav')
 

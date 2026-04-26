@@ -1,0 +1,24 @@
+name: Test VNDecorrelate
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: [ "3.12", "3.13", "3.14" ]
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v6
+      - name: Setup UV
+        uses: astral-sh/setup-uv@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Test with python ${{ matrix.python-version }}
+        run: uv run --frozen pytest

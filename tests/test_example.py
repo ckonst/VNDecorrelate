@@ -1,10 +1,11 @@
 import pytest
 import scipy.io.wavfile as wavfile
 
+from tests import IN_GHA
 from vndecorrelate.decorrelation import SignalChain
 
 
-@pytest.mark.skip
+@pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
 def test_example():
     fs, guitar = wavfile.read('audio/guitar.wav')
 
