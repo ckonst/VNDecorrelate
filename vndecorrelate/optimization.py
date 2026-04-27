@@ -6,16 +6,56 @@ from vndecorrelate.decorrelation import Decorrelator, HaasEffect, VelvetNoise
 from vndecorrelate.utils.dsp import EPSILON, polar_coordinates
 
 
+def left_right_correlation(stereo_signal: NDArray) -> float:
+    """Return the dot product between the normalized left and right channels: [-1.0, 1.0]"""
+    return np.dot(
+        stereo_signal[:, 0] / (np.linalg.norm(stereo_signal[:, 0]) + EPSILON),
+        stereo_signal[:, 1] / (np.linalg.norm(stereo_signal[:, 0]) + EPSILON),
+    )
+
+
+def angular_variance(thetas: NDArray, weights: NDArray) -> float:
+    """Return the amplitude-weighted angular variance (spread) of the polar samples: E_w[θ²]"""
+    return float(np.sum(weights * thetas**2))
+
+
+def centroid(thetas: NDArray, weights: NDArray) -> float:
+    """Return the mean theta (centroid) of the polar samples: E_w[θ]"""
+    return float(np.sum(weights * thetas))
+
+
+def polar_skewness(
+    thetas: NDArray, weights: NDArray, angular_variance: NDArray
+) -> float:
+    """Return the skewness of the polar samples: ``E_w[θ³]``"""
+
+    return (
+        float(np.sum(weights * thetas**3))
+        /
+        # standardize by dividing by σ³ == (σ²)^(3/2)
+        (max(angular_variance, EPSILON) ** 1.5)
+    )
+
+
+def max_angular_exceedance(thetas: NDArray, angle_limit: float) -> float:
+    """return the maximum angular exceedance of the polar samples."""
+    return max(0.0, float(np.max(np.abs(thetas)) - angle_limit))
+
+
 def left_right_correlation_objective(
     input_signal: NDArray,
     decorrelator: Decorrelator,
 ) -> float:
+    """Scalar objective for left-right correlation r optimization.
+
+    Returns a value to MINIMIZE (negate of the multi-objective).
+    """
     output_signal = decorrelator.decorrelate(input_signal)
 
     # left-right correlation: square of dot product => optimize to zero
-    abs_dot_product = np.dot(output_signal[:, 0], output_signal[:, 1]) ** 2
+    dot_product_squared = left_right_correlation(output_signal) ** 2
 
-    return abs_dot_product
+    return dot_product_squared
 
 
 def symmetry_aware_objective(
@@ -24,6 +64,7 @@ def symmetry_aware_objective(
     angle_limit: float = np.pi / 4,
     lambda_mean: float = 5.0,  # centroid penalty weight
     lambda_skew: float = 2.0,  # skewness penalty weight
+    lambda_correlation: float = 15.0,  # correlation penalty weight
     lambda_penalty: float = 1e3,  # constrain violation penalty
 ) -> float:
     """
@@ -33,10 +74,11 @@ def symmetry_aware_objective(
 
     Terms
     -----
-    +E_w[θ²]         spread — maximize hull area proxy
-    −λ₁·(E_w[θ])²    centroid — keep hull centered on θ=0
-    −λ₂·(E_w[θ³])²   skewness — keep left/right halves balanced
-    -penalty         angle constraint via quadratic penalty
+    ``+E_w[θ²]``         spread — maximize hull area proxy
+    ``−λ₁·(E_w[θ])²``    centroid — keep hull centered on ``θ=0``
+    ``−λ₂·(E_w[θ³])²``   skewness — keep left/right halves balanced
+    ``-λ₃∙r``            correlation — keep left/right correlation = 0
+    ``-penalty``         angle constraint via quadratic penalty
     """
 
     output_signal = decorrelator.decorrelate(input_signal)
@@ -46,23 +88,32 @@ def symmetry_aware_objective(
     )
 
     # Even moment: variance => maximize spread
-    spread = float(np.sum(weights * thetas**2))
+    spread = angular_variance(thetas, weights)
 
     # 1st odd moment: weighted mean => optimize to zero
-    mean_theta_penalty = lambda_mean * float(np.sum(weights * thetas)) ** 2
+    mean_theta_penalty = lambda_mean * centroid(thetas, weights) ** 2
 
     # 3rd odd moment: weighted skewness => optimize to zero
     # normalize by the proportional amount of spread in the distribution
-    skewness_penalty = (
-        lambda_skew
-        * (float(np.sum(weights * thetas**3)) / (max(spread, EPSILON) ** 1.5)) ** 2
+    skewness_penalty = lambda_skew * polar_skewness(thetas, weights, spread) ** 2
+
+    # left-right correlation: dot product of L and R => optimize to zero
+    lr_correlation_penalty = (
+        lambda_correlation * left_right_correlation(output_signal) ** 2
     )
 
     # Constraint: max angular exceedance
-    violation = float(np.max(np.abs(thetas)) - angle_limit)
-    constraint_penalty = lambda_penalty * max(0.0, violation) ** 2
+    constraint_penalty = (
+        lambda_penalty * max_angular_exceedance(thetas, angle_limit) ** 2
+    )
 
-    objective = spread - mean_theta_penalty - skewness_penalty - constraint_penalty
+    objective = (
+        spread
+        - mean_theta_penalty
+        - skewness_penalty
+        - lr_correlation_penalty
+        - constraint_penalty
+    )
 
     return -objective  # minimizer convention
 
@@ -70,7 +121,7 @@ def symmetry_aware_objective(
 def grid_scan(input_signal: NDArray, decorrelators: list[Decorrelator]) -> NDArray:
     return np.array(
         [
-            left_right_correlation_objective(input_signal, decorrelator)
+            symmetry_aware_objective(input_signal, decorrelator)
             for decorrelator in decorrelators
         ]
     )

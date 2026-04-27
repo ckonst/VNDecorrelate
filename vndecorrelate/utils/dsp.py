@@ -14,9 +14,9 @@ class NormalizeMode(StrEnum):
 
 
 def apply_stereo_width(input_signal: NDArray, width: float) -> None:
-    """Return `input_signal` with the Mid-Side balance interpolated at width.
+    """Return ``input_signal`` with the Mid-Side balance interpolated at width.
 
-    `input_signal` MUST be a Left-Right stereo signal of shape (n, 2).
+    ``input_signal`` MUST be a Left-Right stereo signal of shape (n, 2).
 
     Parameters
     ----------
@@ -35,11 +35,11 @@ def apply_stereo_width(input_signal: NDArray, width: float) -> None:
 def encode_signal_to_side_channel(
     input_signal: NDArray, decorrelated_signal: NDArray
 ) -> None:
-    """Encodes `decorrelated_signal` in-place to be the side channel of `input_signal`.
+    """Encodes ``decorrelated_signal`` in-place to be the side channel of ``input_signal``.
 
-    `input_signal` and decorrelated_signal MUST be a Left-Right stereo signal of shape (n, 2).
-    Assumes that `input_signal` is a mono signal duplicated to stereo,
-    both channels of `decorrelated_signal` will be overwritten.
+    ``input_signal`` and decorrelated_signal MUST be a Left-Right stereo signal of shape (n, 2).
+    Assumes that ``input_signal`` is a mono signal duplicated to stereo,
+    both channels of ``decorrelated_signal`` will be overwritten.
 
     Parameters
     ----------
@@ -357,7 +357,7 @@ def sine_sweep(
     duration_seconds: float,
     sample_rate_hz: int = 44100,
 ) -> NDArray:
-    """Generate a sine sweep signal from `start_freq_hz` to `end_freq_hz` over `duration_seconds`."""
+    """Generate a sine sweep signal from ``start_freq_hz`` to ``end_freq_hz`` over ``duration_seconds``."""
     t = np.linspace(
         0, duration_seconds, int(sample_rate_hz * duration_seconds), endpoint=False
     )
@@ -383,14 +383,14 @@ def polar_coordinates(
 
 
 def exponential_decay(t: float, k: float = 2) -> float:
-    """evaluate :math:`e^{-kt}` for a given time `t` and decay rate `k`."""
+    """evaluate :math:``e^{-kt}`` for a given time ``t`` and decay rate ``k``."""
     return np.e ** (-k * t)
 
 
 def generate_decay_envelope(
     num_segments: int, segment_position: float
 ) -> tuple[float, ...]:
-    """Generate a decay envelope with `num_segments` segments, where the intra-segment sample location is shifted by `segment_position`.
+    """Generate a decay envelope with ``num_segments`` segments, where the intra-segment sample location is shifted by ``segment_position``.
 
     Parameters
     ----------
@@ -403,7 +403,7 @@ def generate_decay_envelope(
     Returns
     -------
     tuple[float, ...]:
-        A tuple of `num_segments` floats that define the decay envelope.
+        A tuple of ``num_segments`` floats that define the decay envelope.
     """
     return tuple(
         exponential_decay((t / num_segments) + (segment_position * 1 / num_segments))
