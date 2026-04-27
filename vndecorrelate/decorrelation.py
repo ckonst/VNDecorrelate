@@ -39,7 +39,7 @@ class SignalProcessor(Protocol):
 
 @dataclass
 class Decorrelator(ABC, SignalProcessor):
-    """An abstract base class for a Decorrelator."""
+    """An abstract base class for a ``Decorrelator``."""
 
     num_outs: int = 2
     width: float | None = None
@@ -81,8 +81,8 @@ class SignalChain(SignalProcessor):
     def __post_init__(self) -> None:
         if self._decorrelators is not None:
             raise TypeError(
-                'Cannot supply decorrelators directly, use `SignalChain.velvet_noise`,'
-                ' `SignalChain.haas_effect`, `SignalChain.white_noise`, or `SignalChain.stateless`.'
+                'Cannot supply decorrelators directly, use ``SignalChain.velvet_noise``,'
+                ' ``SignalChain.haas_effect``, ``SignalChain.white_noise``, or ``SignalChain.stateless``.'
             )
         self._decorrelators = []
 
@@ -130,12 +130,12 @@ class SignalChain(SignalProcessor):
     ) -> dict[str, Any]:
         if sample_rate_hz is not None and sample_rate_hz != self.sample_rate_hz:
             raise TypeError(
-                f'{sample_rate_hz=} was supplied to {cls} but differs from the sample rate of the enclosing SignalChain ({self.sample_rate_hz})'
+                f'{sample_rate_hz=} was supplied to {cls} but differs from the sample rate of the enclosing ``SignalChain`` ({self.sample_rate_hz})'
             )
         return kwargs
 
     def __call__(self, input_signal: NDArray) -> NDArray:
-        """Decorrelate input_signal with all decorrelators in this SignalChain."""
+        """Decorrelate ``input_signal`` with all decorrelators in this ``SignalChain``."""
         self._init_decorrelators()
         cascaded_sig = input_signal
         for decorrelator in self._decorrelators:
@@ -185,6 +185,7 @@ class HaasEffect(Decorrelator):
         delay_time_seconds : float
             The time in seconds to delay the channel by.
         mode : HaasEffectMode
+            If set to LR, the ``delayed_channel`` (either left or right) will be delayed.
             If set to MS, then the input channels will be converted to Mid-Side as though they were Left-Right, even if they're not.
 
     """
@@ -194,7 +195,7 @@ class HaasEffect(Decorrelator):
     mode: DecorrelateMode = DecorrelateMode.LR
 
     def decorrelate(self, input_signal: NDArray) -> NDArray:
-        """Perform a Haas Effect decorrelation on input_signal."""
+        """Perform a Haas Effect decorrelation on ``input_signal``."""
         input_signal = to_float32(input_signal)
         output_signal = self.haas_delay(input_signal)
 
@@ -204,7 +205,7 @@ class HaasEffect(Decorrelator):
         return output_signal
 
     def haas_delay(self, input_signal: NDArray) -> NDArray:
-        """Return a stereo signal where the specified channel is delayed by delay_time."""
+        """Return a stereo signal where the specified channel is delayed by ``delay_time_seconds``."""
         delay_len_samples = round(self.delay_time_seconds * self.sample_rate_hz)
         input_length = len(input_signal)
         output_signal = np.zeros((input_length + delay_len_samples, 2))
@@ -332,8 +333,8 @@ class VelvetNoise(Decorrelator):
     """A `Velvet-Noise Decorrelator <http://www.dafx17.eca.ed.ac.uk/papers/DAFx17_paper_96.pdf>`__ for audio.
 
     A Velvet Noise Sequence will be generated for each output channel on initialization,
-    modifying `duration_seconds`, `num_impulses`, `num_outs`, or `fir_length_samples`
-    will trigger a regeneration of the Velvet Noise Sequence on the next call to `velvet_noise`, `convolve`, or `decorrelate`.
+    modifying ``duration_seconds``, ``num_impulses``, ``num_outs``, or ``fir_length_samples``
+    will trigger a regeneration of the Velvet Noise Sequence on the next call to ``velvet_noise``, ``convolve``, or ``decorrelate``.
 
     Attributes
     ----------
@@ -345,6 +346,13 @@ class VelvetNoise(Decorrelator):
             The sequence of coefficients for segmented decay, one for each segment.
         log_distribution_strength : float
             How much to distribute impulses logarithmically [0.0, 1.0].
+        normalizer : Callable[[NDArray, NDArray], None] | None
+            The function used to normalize the output signal, if any. Defaults to RMS normalization.
+        filtered_channels : Sequence[int]
+            A sequence containing the channel indices of channels that will have a velvet noise filter applied.
+        mode : DecorrelateMode
+            If LR: decorrelate by filtering the specified ``filtered_channels``.
+            If MS: decorrelate by injecting the ``filtered_channels`` as the side channel of the final signal.
         seed : int
             The seed for the velvet noise generator.
     """
@@ -354,7 +362,7 @@ class VelvetNoise(Decorrelator):
     segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2)
     log_distribution_strength: float = 1.0
     normalizer: Callable[[NDArray, NDArray], None] | None = rms_normalize
-    filtered_channels: tuple[int, ...] = 0, 1
+    filtered_channels: Sequence[int] = 0, 1
     mode: DecorrelateMode = DecorrelateMode.MS
     seed: int | None = None
 
@@ -364,7 +372,7 @@ class VelvetNoise(Decorrelator):
 
     @property
     def velvet_noise(self) -> _ParallelVelvetNoise:
-        """The generated velvet noise sequence for each output channel, stored as a dataclass."""
+        """The generated velvet noise sequence for each ``filtered_channel``, stored as a dataclass."""
         # Regenerate if duration, num_impulses, num_outs, or fir_length_samples is changed after initialization,
         # since these are the only parameters that affect the velvet noise sequence.
         if (
@@ -388,15 +396,15 @@ class VelvetNoise(Decorrelator):
         self._velvet_noise = self._generate()
 
     def convolve(self, input_signal: NDArray) -> NDArray:
-        """Perform the optimized convolution of the velvet noise filters onto each channel of a signal."""
+        """Perform the optimized convolution of the velvet noise filters onto each ``filtered_channel`` of a signal."""
         sig_len = len(input_signal)
         segment_buffer = np.zeros(sig_len, dtype=np.float32)
         output_signal = np.zeros((sig_len, self.num_outs), dtype=np.float32)
 
+        for channel_index in self.unfiltered_channels:
+            output_signal[:, channel_index] = input_signal[:, channel_index]
+
         for channel_index, channel_segments in enumerate(self.velvet_noise):
-            if channel_index not in self.filtered_channels:
-                output_signal[:, channel_index] = input_signal[:, channel_index]
-                continue
             for segment_index, segment in enumerate(channel_segments):
                 for signed_indexes, operator in segment:
                     for impulse_index in signed_indexes:
@@ -450,11 +458,12 @@ class VelvetNoise(Decorrelator):
 
     @property
     def FIR(self) -> NDArray:
-        """Return the finite impulse responses (for each channel) as a numpy array of shape (fir_length_samples, num_outs)."""
-        fir = np.zeros((self.fir_length_samples, self.num_outs))
+        """Return the finite impulse responses (for each channel) as a numpy array of shape ``(fir_length_samples, num_outs)``."""
+        num_filters = len(self.filtered_channels)
+        fir = np.zeros((self.fir_length_samples, num_filters))
         indexes, values = (
-            [[] for _ in range(self.num_outs)],
-            [[] for _ in range(self.num_outs)],
+            [[] for _ in range(num_filters)],
+            [[] for _ in range(num_filters)],
         )
         for channel_index, channel_segments in enumerate(self.velvet_noise):
             for segment_index, segment in enumerate(channel_segments):
@@ -466,6 +475,10 @@ class VelvetNoise(Decorrelator):
                         )
         np.put_along_axis(fir, np.array(indexes).T, np.array(values).T, 0)
         return fir
+
+    @property
+    def unfiltered_channels(self) -> filter:
+        return filter(lambda i: i not in self.filtered_channels, range(self.num_outs))
 
     def _generate(self) -> _ParallelVelvetNoise:
         """Generate a velvet noise Finite Impulse Response (FIR) filter to convolve with an input signal.
@@ -489,7 +502,7 @@ class VelvetNoise(Decorrelator):
 
         # Calculate number of samples between each logarithmically distributed impulse:
         # Start by taking the cumulative sum, then shift left by 1 if we have a log distribution strength of 0.0
-        # This is done to be consistent with `uniform_density` i.e. we fix an off-by-one error in the uniform distribution case.
+        # This is done to be consistent with ``uniform_density`` i.e. we fix an off-by-one error in the uniform distribution case.
         # Lastly, scale the cumulative sum by the length of the filter.
         log_impulse_intervals = np.cumsum(log_distribution)
         if self.log_distribution_strength == 0.0:
@@ -497,22 +510,28 @@ class VelvetNoise(Decorrelator):
 
         log_impulse_intervals *= self.fir_length_samples / log_impulse_intervals[-1]
 
+        num_filters = len(self.filtered_channels)
+
         impulse_signs = rng.uniform(
             low=0,
             high=1,
-            size=(self.num_impulses, self.num_outs),
+            size=(self.num_impulses, num_filters),
         )
         impulse_offsets = rng.uniform(
             low=0,
             high=1,
             # Rather than removing the unused last value via copy, just increase the size to match the impulse intervals.
-            size=(self.num_impulses + 1, self.num_outs),
+            size=(self.num_impulses + 1, num_filters),
         )
         signs = (2 * np.round(impulse_signs)) - 1
 
         average_impulse_interval = self.sample_rate_hz / self.density
 
         for channel_index in range(self.num_outs):
+            if channel_index not in self.filtered_channels:
+                velvet_noise.output_channels.append([])
+                continue
+
             fir_indexes = apply_log_distribution(
                 impulse_offsets[:, channel_index],
                 log_distribution,
@@ -542,7 +561,7 @@ def generate_velvet_noise(
     log_distribution_strength: float = 1.0,
     seed: int | None = None,
 ) -> NDArray:
-    """More performant alternative to `VelvetNoise.FIR` for generating a velvet noise FIR filter as an NDArray.
+    """More performant alternative to ``VelvetNoise.FIR`` for generating a velvet noise FIR filter as an NDArray.
 
     Generate a velvet noise Finite Impulse Response (FIR) filter to convolve with an input signal.
 
@@ -552,8 +571,8 @@ def generate_velvet_noise(
     Segmented decay is preferred to exponential decay because it uses
     less multiplication, and produces satisfactory results.
 
-    To convolve after calling this function, you must use `convolve_velvet_noise`.
-    For batch processing or long audio files `VelvetNoise` will usually be more performant.
+    To convolve after calling this function, you must use ``convolve_velvet_noise``.
+    For batch processing or long audio files ``VelvetNoise`` will usually be more performant.
 
     """
     rng = np.random.default_rng(seed)
@@ -616,11 +635,11 @@ def generate_velvet_noise(
 def convolve_velvet_noise(
     input_signal: NDArray, velvet_noise_filters: NDArray
 ) -> NDArray:
-    """Simple, stateless, but less performant alternative to `VelvetNoise.convolve()` for convolving velvet noise filters.
-    `input_signal` is an `NDArray` of shape (n, num_channels) and `velvet_noise_filters` is an `NDArray` of shape (m, num_channels).
-    A `ValueError` is raised if the number of channels differs between `input_signal` and `velvet_noise_filters`.
+    """Simple, stateless, but less performant alternative to ``VelvetNoise.convolve()`` for convolving velvet noise filters.
+    ``input_signal`` is an ``NDArray`` of shape ``(n, num_channels)`` and ``velvet_noise_filters`` is an ``NDArray`` of shape (m, num_channels).
+    A ``ValueError`` is raised if the number of channels differs between ``input_signal`` and ``velvet_noise_filters``.
 
-    `velvet_noise_filters` may also be assigned from `VelvetNoise.FIR`. If `generate_velvet_noise` was used, then this function must be used for convolution.
+    ``velvet_noise_filters`` may also be assigned from ``VelvetNoise.FIR``. If ``generate_velvet_noise`` was used, then this function must be used for convolution.
     While this convolution is optimized to take advantage of the sparseness of the velvet noise, it is generally slower due to more memory allocations.
     """
     num_channels = 1 if input_signal.ndim == 1 else input_signal.shape[1]
@@ -698,5 +717,5 @@ class WhiteNoise(Decorrelator):
 
     @property
     def FIR(self) -> NDArray:
-        """Return the finite impulse responses (for each channel) as a numpy array of shape (fir_length_samples, num_outs)."""
+        """Return the finite impulse responses (for each channel) as a numpy array of shape ``(fir_length_samples, num_outs)``."""
         return self._white_noise_filter

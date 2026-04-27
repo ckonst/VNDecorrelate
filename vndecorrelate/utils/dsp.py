@@ -59,7 +59,7 @@ def encode_signal_to_side_channel(
 
 
 def to_float32(input_signal: NDArray) -> NDArray[np.float32]:
-    """Return `input_signal` as an array of 32 bit floats."""
+    """Return ``input_signal`` as an array of 32 bit floats."""
     return input_signal.astype(np.float32, copy=False)
 
 
@@ -68,7 +68,7 @@ def peak_normalize(
     mode: NormalizeMode = NormalizeMode.DUAL_MONO,
     epsilon: float = EPSILON,
 ) -> None:
-    """Normalize `input_signal` in-place to [-1, 1] using the calculated peaks."""
+    """Normalize ``input_signal`` in-place to ``[-1, 1]`` using the calculated peaks."""
 
     match (input_signal.ndim, mode):
         case (1, _) | (_, NormalizeMode.STEREO):
@@ -85,7 +85,7 @@ def rms_normalize(
     mode: NormalizeMode = NormalizeMode.DUAL_MONO,
     epsilon: float = EPSILON,
 ) -> None:
-    """Normalize output_signal in-place to the rms value of input_signal."""
+    """Normalize ``output_signal`` in-place to the rms value of ``input_signal``."""
 
     match (input_signal.ndim, mode):
         case (1, _) | (_, NormalizeMode.STEREO):
@@ -105,13 +105,13 @@ def rms_normalize(
 
 
 def mono_to_stereo(input_signal: NDArray) -> NDArray:
-    """Convert a mono signal of shape (n,) to a stereo signal of shape (n, 2)."""
+    """Convert a mono signal of shape ``(n,)`` to a stereo signal of shape ``(n, 2)``."""
     check_mono(input_signal)
     return np.column_stack((input_signal, input_signal))
 
 
 def stereo_to_mono(input_signal: NDArray) -> NDArray:
-    """Convert a stereo signal of shape (n, 2) to a mono signal of shape (n,)."""
+    """Convert a stereo signal of shape ``(n, 2)`` to a mono signal of shape ``(n,)``."""
     check_stereo(input_signal)
     return np.sum(input_signal, axis=1) * 0.5
 
@@ -184,13 +184,13 @@ def generate_log_distribution(strength: float, size: int) -> NDArray:
     -----
     The implementation scales and normalizes the exponential curve so that
     the distribution varies smoothly between uniform and strongly
-    concentrated shapes as ``strength`` moves from 0.0 to 1.0.
+    concentrated shapes as ``strength`` moves from ``0.0`` to ``1.0``.
     """
     return (
         (10.0 ** (2.0 * strength * (np.arange(size + 1.0) / size)))
         /
         # Applying the strength term to the denominator helps with the uniform density case
-        # where `strength = 0.0` by reducing the normalization constant to 1.0
+        # where ``strength = 0.0`` by reducing the normalization constant to 1.0
         # to generate a sequence that increases linearly, while still parameterized by strength.
         (100.0 * ((1.0 + (strength * 99.0)) / 100.0))
     )
@@ -211,14 +211,14 @@ def apply_log_distribution(
         ``log_distribution`` and ``log_impulse_intervals``.
     log_distribution : ndarray
         Precomputed distribution weights from
-        :func:`generate_log_distribution` describing how density varies
+        :func:``generate_log_distribution`` describing how density varies
         across the filter.
     log_impulse_intervals : ndarray
         Cumulative impulse interval positions corresponding to the
         ``log_distribution`` values.
     jitter : float
         Scale applied to ``log_distribution`` that controls how much the
-        random offsets can perturb each impulse position. A value of 0.0 means no jitter.
+        random offsets can perturb each impulse position. A value of ``0.0`` means no jitter.
         Typical usage is to set this to the average impulse interval (samples per impulse).
 
     Returns
@@ -255,7 +255,7 @@ def uniform_density(
     Parameters
     ----------
     randoms : ndarray
-        Uniform random values in the interval [0, 1], with the same shape
+        Uniform random values in the interval ``[0, 1]``, with the same shape
         as ``impulse_indexes``.
     impulse_indexes : ndarray
         Precomputed impulse indices (for example ``np.arange(n_impulses)``),
@@ -282,7 +282,7 @@ def uniform_density(
 
 
 def check_mono(input_signal: NDArray) -> None:
-    """If the input signal is not a mono signal, raise an error."""
+    """If ``input_signal`` is not a mono signal, raise an error."""
     if input_signal.ndim != 1:
         raise ValueError(
             f'Input shape invalid: Expected shape (num samples,), but got shape {input_signal.shape}.'
@@ -290,7 +290,7 @@ def check_mono(input_signal: NDArray) -> None:
 
 
 def check_stereo(input_signal: NDArray) -> None:
-    """If the input signal is not a stereo signal, raise an error."""
+    """If ``input_signal`` is not a stereo signal, raise an error."""
     if input_signal.ndim != 2 or input_signal.shape[1] != 2:
         raise ValueError(
             f'Input shape invalid: Expected shape (num samples, 2), but got shape {input_signal.shape}.'
@@ -298,7 +298,7 @@ def check_stereo(input_signal: NDArray) -> None:
 
 
 def check_equal_length(x: NDArray, y: NDArray, dim: int = 0) -> None:
-    """If the input signals do not have equal length for the specified dimension, raise an error."""
+    """If ``x`` and ``y`` do not have equal length for the specified dimension, raise an error."""
     if x.shape[dim] != y.shape[dim]:
         raise ValueError(
             f'Input length mismatch: Expected signals of equal length, but got lengths {x.shape[dim]} and {y.shape[dim]} for dimension {dim}.'
@@ -314,7 +314,7 @@ def cross_correlogram(
     stride_seconds: float = 0.01,
     epsilon: float = EPSILON,
 ) -> NDArray:
-    """Compute the cross-correlogram between two mono signals."""
+    """Compute the cross-correlogram between ``x`` and ``y``."""
     check_mono(x)
     check_mono(y)
     check_equal_length(x, y)
@@ -369,9 +369,9 @@ def sine_sweep(
 def polar_coordinates(
     left: NDArray, right: NDArray, normalize: bool = True
 ) -> tuple[NDArray, NDArray, NDArray]:
-    """Return each sample of the left and right channels as polar coordinates with amplitude weights: ``(radii, thetas, weights)``."""
+    """Return each sample of the ``left`` and ``right`` channels as polar coordinates with amplitude weights: ``(radii, thetas, weights)``."""
     # atan2 gives angle in radians; the (L-R, L+R) formulation
-    # naturally spans [-pi/2, pi/2] (the 180° stereo field)
+    # naturally spans [-π/2, π/2] (the 180° stereo field)
     thetas = np.arctan2(left - right, left + right)  # radians, [-π/2, +π/2]
     radii = np.sqrt(left**2 + right**2)  # magnitude [0, √2]
     weights = radii / (radii.sum() + EPSILON)  # amplitude-weights
@@ -383,7 +383,7 @@ def polar_coordinates(
 
 
 def exponential_decay(t: float, k: float = 2) -> float:
-    """evaluate :math:``e^{-kt}`` for a given time ``t`` and decay rate ``k``."""
+    """evaluate :math:``e⁻ᵏᵗ`` for a given time ``t`` and decay rate ``k``."""
     return np.e ** (-k * t)
 
 
@@ -398,7 +398,7 @@ def generate_decay_envelope(
         The number of segments to generate.
 
     segment_position : float
-        A percent [0.0, 1.0] to shift the intra-segment sample location to.
+        A percent ``[0.0, 1.0]`` to shift the intra-segment sample location to.
 
     Returns
     -------

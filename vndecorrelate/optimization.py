@@ -32,7 +32,7 @@ def polar_skewness(
     return (
         float(np.sum(weights * thetas**3))
         /
-        # standardize by dividing by σ³ == (σ²)^(3/2)
+        # standardize by dividing by σ³ == (σ²)³ᐟ²
         (max(angular_variance, EPSILON) ** 1.5)
     )
 
