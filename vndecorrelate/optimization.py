@@ -1,3 +1,5 @@
+from typing import Any, Callable
+
 import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import minimize_scalar
@@ -48,7 +50,7 @@ def left_right_correlation_objective(
 ) -> float:
     """Scalar objective for left-right correlation r optimization.
 
-    Returns a value to MINIMIZE (negate of the multi-objective).
+    Returns a value to minimize.
     """
     output_signal = decorrelator.decorrelate(input_signal)
 
@@ -68,9 +70,10 @@ def symmetry_aware_objective(
     lambda_penalty: float = 1e3,  # constrain violation penalty
 ) -> float:
     """
-    Scalar objective for log impulse concentration κ optimization.
+    Scalar objective function for maximizing stereo width through a Convex Hull area proxy (weighted angular variance).
+    Penalizes off-centeredness, skewness, correlation, and angular exceedance of the polar samples.
 
-    Returns a value to MINIMIZE (negate of the multi-objective).
+    Returns a value to minimize (negate of the multi-objective).
 
     Terms
     -----
@@ -119,6 +122,7 @@ def symmetry_aware_objective(
 
 
 def grid_scan(input_signal: NDArray, decorrelators: list[Decorrelator]) -> NDArray:
+    print('Starting Grid Scan')
     return np.array(
         [
             symmetry_aware_objective(input_signal, decorrelator)
@@ -136,6 +140,33 @@ def get_local_minima(scores: NDArray, grid_size: int) -> list[int]:
     if not local_minima:
         return [int(np.argmin(scores))]
     return local_minima
+
+
+def optimize_local_minima(
+    local_minima: list[int],
+    scalars: NDArray[np.floating[Any]],
+    grid_size: int,
+    scalar_objective: Callable[[float], float],
+) -> np.floating[Any]:
+    best_scalar, best_score = 0.0, np.inf
+
+    print('Starting Local Minima optimization')
+    for i in local_minima:
+        low = scalars[max(0, i - 1)]
+        high = scalars[min(grid_size - 1, i + 1)]
+
+        result = minimize_scalar(
+            fun=scalar_objective,
+            bounds=(low, high),
+            method='bounded',
+            options={'xatol': 1e-4},
+        )
+
+        if result.fun < best_score:
+            best_score = result.fun
+            best_scalar = result.x
+
+    return best_scalar
 
 
 def optimize_haas_delay(
@@ -157,39 +188,25 @@ def optimize_haas_delay(
         for tau in taus
     ]
 
-    print('Starting Grid Scan')
     scores = grid_scan(input_signal, haas_effect_decorrelators)
 
     # Identify local minima (best candidate regions)
     # A local min at index i: scores[i] < scores[i-1] and scores[i] < scores[i+1]
     local_minima = get_local_minima(scores, grid_size)
 
-    best_tau, best_score = 0.0, np.inf
-
-    print('Starting Local Minima optimization')
-    for i in local_minima:
-        low = taus[max(0, i - 1)]
-        high = taus[min(grid_size - 1, i + 1)]
-
-        result = minimize_scalar(
-            lambda tau: symmetry_aware_objective(
-                input_signal,
-                HaasEffect(
-                    sample_rate_hz=sample_rate_hz,
-                    delay_time_seconds=tau,
-                    mode='LR',
-                ),
+    return optimize_local_minima(
+        local_minima,
+        taus,
+        grid_size,
+        lambda tau: symmetry_aware_objective(
+            input_signal,
+            HaasEffect(
+                sample_rate_hz=sample_rate_hz,
+                delay_time_seconds=tau,
+                mode='LR',
             ),
-            bounds=(low, high),
-            method='bounded',
-            options={'xatol': 1e-4},
-        )
-
-        if result.fun < best_score:
-            best_score = result.fun
-            best_tau = result.x
-
-    return best_tau
+        ),
+    )
 
 
 def optimize_velvet_noise(
@@ -218,41 +235,27 @@ def optimize_velvet_noise(
         for kappa in kappas
     ]
 
-    print('Starting Grid Scan')
     scores = grid_scan(input_signal, velvet_noise_decorrelators)
 
     # Identify local minima (best candidate regions)
     # A local min at index i: scores[i] < scores[i-1] and scores[i] < scores[i+1]
     local_minima = get_local_minima(scores, grid_size)
 
-    best_kappa, best_score = 0.0, np.inf
-
-    print('Starting Local Minima optimization')
-    for i in local_minima:
-        low = kappas[max(0, i - 1)]
-        high = kappas[min(grid_size - 1, i + 1)]
-
-        result = minimize_scalar(
-            lambda kappa: symmetry_aware_objective(
-                input_signal,
-                VelvetNoise(
-                    sample_rate_hz=sample_rate_hz,
-                    duration_seconds=duration_seconds,
-                    num_impulses=num_impulses,
-                    log_distribution_strength=kappa,
-                    normalizer=None,  # speed up optimization by skipping normalization
-                    filtered_channels=(0,),
-                    mode='LR',
-                    seed=seed,
-                ),
+    return optimize_local_minima(
+        local_minima,
+        kappas,
+        grid_size,
+        lambda kappa: symmetry_aware_objective(
+            input_signal,
+            VelvetNoise(
+                sample_rate_hz=sample_rate_hz,
+                duration_seconds=duration_seconds,
+                num_impulses=num_impulses,
+                log_distribution_strength=kappa,
+                normalizer=None,  # speed up optimization by skipping normalization
+                filtered_channels=(0,),
+                mode='LR',
+                seed=seed,
             ),
-            bounds=(low, high),
-            method='bounded',
-            options={'xatol': 1e-4},
-        )
-
-        if result.fun < best_score:
-            best_score = result.fun
-            best_kappa = result.x
-
-    return best_kappa
+        ),
+    )
