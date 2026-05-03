@@ -6,8 +6,13 @@ from vndecorrelate.decorrelation import SignalChain
 
 
 @pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
-def test_example():
-    fs, guitar = wavfile.read('audio/guitar.wav')
+def test_example(
+    guitar_signal,
+    pop_shuffle_signal,
+    viola_signal,
+    vocal_signal,
+):
+    fs, guitar = guitar_signal
 
     chain = (
         SignalChain(sample_rate_hz=fs)
@@ -27,15 +32,15 @@ def test_example():
     output_signal = chain(guitar)
     wavfile.write('audio/guitar_dec.wav', fs, output_signal)
 
-    fs, pop_shuffle = wavfile.read('audio/pop_shuffle.wav')
+    fs, pop_shuffle = pop_shuffle_signal
     output_signal = chain(pop_shuffle)
     wavfile.write('audio/pop_shuffle_dec.wav', fs, output_signal)
 
-    fs, viola = wavfile.read('audio/viola.wav')
+    fs, viola = viola_signal
     output_signal = chain(viola)
     wavfile.write('audio/viola_dec.wav', fs, output_signal)
 
-    fs, vocal = wavfile.read('audio/vocal.wav')
+    fs, vocal = vocal_signal
     output_signal = chain(vocal)
     wavfile.write('audio/vocal_dec.wav', fs, output_signal)
 
