@@ -8,17 +8,17 @@ from vndecorrelate.utils.plot import plot_polar_sample, plot_signal
 
 
 @pytest.mark.skip
-def test__optimize_velvet_noise(pop_shuffle_signal):
-    fs, pop_shuffle = pop_shuffle_signal
+def test__optimize_velvet_noise(viola_signal):
+    fs, viola = viola_signal
 
-    if pop_shuffle.ndim == 1:
-        pop_shuffle = mono_to_stereo(pop_shuffle)
+    if viola.ndim == 1:
+        viola = mono_to_stereo(viola)
 
     duration_seconds = 0.03
     num_impulses = 15
 
     kappa = optimize_velvet_noise(
-        pop_shuffle,
+        viola,
         fs,
         duration_seconds=duration_seconds,
         num_impulses=num_impulses,
@@ -32,11 +32,11 @@ def test__optimize_velvet_noise(pop_shuffle_signal):
         mode='LR',
         seed=1,
     )
-    output_signal = vnd.decorrelate(pop_shuffle)
+    output_signal = vnd.decorrelate(viola)
 
     print(f'Optimized Kappa: {kappa}')
 
-    wavfile.write('audio/pop_shuffle_opt.wav', fs, output_signal)
+    wavfile.write('audio/viola_opt.wav', fs, output_signal)
 
     plot_signal(
         vnd.FIR,
@@ -47,16 +47,16 @@ def test__optimize_velvet_noise(pop_shuffle_signal):
 
 
 @pytest.mark.skip
-def test__optimize_haas_delay(pop_shuffle_signal):
-    fs, pop_shuffle = pop_shuffle_signal
+def test__optimize_haas_delay(viola_signal):
+    fs, viola = viola_signal
 
-    if pop_shuffle.ndim == 1:
-        pop_shuffle = mono_to_stereo(pop_shuffle)
+    if viola.ndim == 1:
+        viola = mono_to_stereo(viola)
 
     max_delay_seconds = 0.03
 
     tau = optimize_haas_delay(
-        pop_shuffle,
+        viola,
         fs,
         max_delay_seconds=max_delay_seconds,
     )
@@ -65,10 +65,10 @@ def test__optimize_haas_delay(pop_shuffle_signal):
         delay_time_seconds=tau,
         mode='LR',
     )
-    output_signal = hed.decorrelate(pop_shuffle)
+    output_signal = hed.decorrelate(viola)
 
     print(f'Optimized Tau: {tau}')
 
-    wavfile.write('audio/pop_shuffle_opt_haas.wav', fs, output_signal)
+    wavfile.write('audio/viola_haas.wav', fs, output_signal)
 
     plot_polar_sample(output_signal, title='HE Optimized Vectorscope')
