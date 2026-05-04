@@ -384,7 +384,7 @@ class VelvetNoise(Decorrelator):
         return self._velvet_noise
 
     def __post_init__(self) -> None:
-        if self.num_impulses > self.fir_length_samples * 0.5:
+        if self.num_impulses >= self.fir_length_samples * 0.2:
             density = self.density
             raise ValueError(
                 f'Velvet Noise Filter of length {self.fir_length_samples} with {self.num_impulses} impulses is not sparse. ({density=:.2f})\n'

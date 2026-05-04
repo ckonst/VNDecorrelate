@@ -136,3 +136,9 @@ tests/plots/*.png
 !tests/plots/Basic Velvet Noise Sequence.png
 !tests/plots/Segmented Decaying Velvet Noise Sequence.png
 !tests/plots/Segmented Decaying Log Distributed Velvet Noise Sequence.png
+!tests/plots/VN Optimized Vectorscope.png
+!tests/plots/Unoptimized VN Vectorscope.png
+!tests/plots/White Noise Filtered Sine Sweep Cross Correlogram.png
+!tests/plots/Velvet Noise Filtered Sine Sweep Cross Correlogram.png
+!tests/plots/Sine Sweep Signal.png
+!tests/plots/Sine Sweep Auto Correlogram.png

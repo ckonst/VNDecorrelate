@@ -134,7 +134,7 @@ def test__plot_sine_sweep_correlogram():
         correlogram,
         lag_seconds=0.02,
         time_seconds=5,
-        title='Sine-sweep Auto Correlogram',
+        title='Sine Sweep Auto Correlogram',
     )
     assert True
 
@@ -149,8 +149,10 @@ def test__plot_correlogram_from_file(viola_signal):
         sample_rate_hz=fs,
         duration_seconds=duration_seconds,
         num_impulses=30,
-        seed=1,
         log_distribution_strength=1.0,
+        filtered_channels=(0,),
+        mode='LR',
+        seed=1,
     )
 
     vnd_output = vnd(input_signal)
@@ -191,6 +193,68 @@ def test__plot_correlogram_from_file(viola_signal):
         title='Viola White Noise Cross Correlogram',
     )
 
-    plot_polar_sample(vnd_output)
+    plot_polar_sample(vnd_output, title='Unoptimized VN Vectorscope')
+
+    assert True
+
+
+@pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
+def test__plot_filtered_sine_sweep_correlogram():
+    fs = 16000
+    input_signal = sine_sweep(
+        start_freq_hz=20,
+        end_freq_hz=8000,
+        duration_seconds=5,
+        sample_rate_hz=fs,
+    )
+
+    duration_seconds = 0.03
+
+    vnd = VelvetNoise(
+        sample_rate_hz=fs,
+        duration_seconds=duration_seconds,
+        num_impulses=30,
+        log_distribution_strength=1.0,
+        mode='LR',
+        seed=1,
+    )
+
+    vnd_output = vnd(input_signal)
+    correlogram = cross_correlogram(
+        vnd_output[:, 0],
+        vnd_output[:, 1],
+        sample_rate_hz=fs,
+        max_lag_seconds=0.02,
+        window_size_seconds=0.02,
+        stride_seconds=0.01,
+    )
+    plot_correlogram(
+        correlogram,
+        lag_seconds=0.02,
+        time_seconds=5,
+        title='Velvet Noise Filtered Sine Sweep Cross Correlogram',
+    )
+
+    wnd = WhiteNoise(
+        sample_rate_hz=fs,
+        duration_seconds=duration_seconds,
+        seed=1,
+    )
+
+    wnd_output = wnd(input_signal)
+    correlogram = cross_correlogram(
+        wnd_output[:, 0],
+        wnd_output[:, 1],
+        sample_rate_hz=fs,
+        max_lag_seconds=0.02,
+        window_size_seconds=0.02,
+        stride_seconds=0.01,
+    )
+    plot_correlogram(
+        correlogram,
+        lag_seconds=0.02,
+        time_seconds=5,
+        title='White Noise Filtered Sine Sweep Cross Correlogram',
+    )
 
     assert True
