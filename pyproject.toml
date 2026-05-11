@@ -4,6 +4,10 @@ version = "1.0.0"
 description = "A Velvet-Noise Decorrelator for audio"
 readme = "README.md"
 requires-python = ">=3.12"
+authors = [
+    { name = "Christian Konstantinov", email = "ckonst98@gmail.com" }
+]
+
 dependencies = [
     "matplotlib>=3.10.3",
     "numpy>=2.3.1",
