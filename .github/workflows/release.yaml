@@ -186,7 +186,7 @@ jobs:
           #   ![Version](https://img.shields.io/badge/version-X.Y.Z-blue)
           # Adjust the colour slug (blue) if your badge uses a different one.
           sed -i \
-            "s|img.shields.io/badge/version-[0-9]*\.[0-9]*\.[0-9]*-|img.shields.io/badge/version-$NEW-|g" \
+            "s|/badge/version-[0-9]*\.[0-9]*\.[0-9]*-|/badge/version-$NEW-|g" \
             README.md
 
       # ── Commit, tag, and push ────────────────────────────────────────────

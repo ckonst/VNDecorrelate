@@ -1,5 +1,5 @@
 # VNDecorrelate
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge)![Tests](https://github.com/ckonst/VNDecorrelate/actions/workflows/test-vnd.yaml/badge.svg?style=for-the-badge)[![PyPI](https://img.shields.io/pypi/v/your-package?style=for-the-badge)](https://pypi.org/project/vndecorrelate)
 
 A Velvet-Noise Decorrelator for audio.
 
