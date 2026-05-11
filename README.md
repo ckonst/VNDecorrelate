@@ -1,23 +1,25 @@
 # VNDecorrelate
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+
 A Velvet-Noise Decorrelator for audio.
 
-Decorrelation refers to the process of transforming an audio source signal into multiple output signals with different waveforms from each other, but with the same sound as the source signal. 
+Decorrelation refers to the process of transforming an audio source signal into multiple output signals with different waveforms from each other, but with the same sound as the source signal [[1]](#1).
 
 In music production, decorrelation is typically applied to the left and right audio channels, creating the perception of stereo width and space. This, however, may come at the cost of potential coloration or transient smearing artifacts. 
 
-Velvet-Noise Decorrelation (VND) attempts to minimize these artifacts as well as computation cost while reducing the correlation of the outputs as much as possible.
+Velvet-Noise Decorrelation (VND) attempts to minimize these artifacts as well as computation cost while reducing the correlation of the outputs as much as possible [[2]](#2).
 
 ## Velvet Noise
 
-Velvet Noise is a sparse noise sequence generated from randomly time-shifted impulses with a random value of either -1 or 1:
+Velvet Noise is a sparse noise sequence generated from randomly time-shifted impulses with a random value of either -1 or 1 [[2]](#2):
 
 ![Basic Velvet Noise](tests/plots/Basic%20Velvet%20Noise%20Sequence.png)
 
-To reduce transient smearing and frequency coloration you can apply a segmented decay envelope:
+To reduce transient smearing and frequency coloration you can apply a segmented decay envelope [[2]](#2):
 
 ![Segmented Decaying Velvet Noise](tests/plots/Segmented%20Decaying%20Velvet%20Noise%20Sequence.png)
 
-As well as logarithmically distributing the impulses towards the start of the sequence:
+As well as logarithmically distributing the impulses towards the start of the sequence [[2]](#2):
 
 ![Segmented Decaying Log Distributed Velvet Noise](tests/plots/Segmented%20Decaying%20Log%20Distributed%20Velvet%20Noise%20Sequence.png)
 
@@ -106,3 +108,14 @@ Plot the cross correlogram after filtering each channel with velvet noise:
 ![Velvet Noise Filtered Sine Sweep Cross Correlogram](tests/plots/Velvet%20Noise%20Filtered%20Sine%20Sweep%20Cross%20Correlogram.png)
 And compare to the behavior of filtering with white noise:
 ![White Noise Filtered Sine Sweep Cross Correlogram](tests/plots/White%20Noise%20Filtered%20Sine%20Sweep%20Cross%20Correlogram.png)
+
+## References
+<a id="1"> </a>
+[1] “What is ‘Decorrelation’? | Sweetwater”. <a
+    href="https://www.sweetwater.com/insync/decorrelation/">
+    https://www.sweetwater.com/insync/decorrelation/</a> (accessed Aug. 10, 2020).
+
+<a id="2"> </a>
+    [2] “Velvet-Noise Decorrelator”. <a
+        href="http://www.dafx17.eca.ed.ac.uk/papers/DAFx17_paper_96.pdf">
+        http://www.dafx17.eca.ed.ac.uk/papers/DAFx17_paper_96.pdf</a> (accessed Aug. 04, 2020).

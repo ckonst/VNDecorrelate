@@ -1,0 +1,330 @@
+# .github/workflows/release.yml
+#
+# Release Workflow — Python + uv
+# ─────────────────────────────────────────────────────────────────────────────
+# Triggers: push to `main` that touches source files, or a manual dispatch
+#           where you choose the bump type (patch / minor / major).
+#
+# What it does:
+#   1. Determines the next semantic version from the latest git tag.
+#   2. Bumps the version inside your package (pyproject.toml + __init__.py).
+#   3. Updates the version badge in README.md.
+#   4. Commits the changes, creates an annotated git tag, and pushes.
+#   5. Builds a source distribution + wheel with `uv build`.
+#   6. Creates a GitHub Release and attaches the built artefacts.
+#   7. Publishes the package to PyPI via Trusted Publisher (OIDC) — no tokens.
+#
+# Prerequisites
+# ─────────────────────────────────────────────────────────────────────────────
+# • Your package uses pyproject.toml and stores its version in:
+#     [project]
+#     version = "x.y.z"
+#   and optionally in vndecorrelate/__init__.py:
+#     __version__ = "x.y.z"
+#
+# • README.md already contains a badge using this exact placeholder text:
+#     ![Version](https://img.shields.io/badge/version-1.0.0-blue)
+#   (any existing version number works; the workflow keeps it in sync)
+#
+# • PyPI Trusted Publisher is configured at
+#   https://pypi.org/manage/account/publishing/ with:
+#     Publisher: GitHub Actions
+#     Owner:     <your-github-org-or-user>
+#     Repo:      <your-repo-name>
+#     Workflow:  release.yml
+#     Environment: pypi          ← must match the job's `environment:` below
+#
+# • The default GITHUB_TOKEN is sufficient for pushing commits/tags and
+#   creating releases — no extra secrets needed.
+# ─────────────────────────────────────────────────────────────────────────────
+
+name: Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      # Only run when actual source changes land on main, not docs-only edits.
+      - "vndecorrelate/**"
+      - "pyproject.toml"
+      - "uv.lock"
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Version bump type"
+        required: true
+        default: patch
+        type: choice
+        options: [patch, minor, major]
+
+# Allow the workflow to push back to the repo and create releases.
+permissions:
+  contents: write
+  id-token: write # required for PyPI Trusted Publisher (OIDC)
+
+jobs:
+  # ──────────────────────────────────────────────────────────────────────────
+  # JOB 1 — version  (runs on main runner, no special env needed)
+  # ──────────────────────────────────────────────────────────────────────────
+  version:
+    name: Bump version & tag
+    runs-on: ubuntu-latest
+    outputs:
+      new_version: ${{ steps.bump.outputs.new_version }}
+      tag: ${{ steps.bump.outputs.tag }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Full history so we can walk tags to find the latest one.
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # ── Determine bump type ──────────────────────────────────────────────
+      # Manual dispatch → use the user's choice.
+      # Automatic push  → inspect the latest commit message for conventional
+      #                   commit keywords; default to `patch`.
+      - name: Resolve bump type
+        id: resolve_bump
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "bump=${{ inputs.bump }}" >> "$GITHUB_OUTPUT"
+          else
+            MSG=$(git log -1 --pretty=%B)
+            if echo "$MSG" | grep -qiE "^feat(\(.+\))?!:|BREAKING.CHANGE"; then
+              echo "bump=major" >> "$GITHUB_OUTPUT"
+            elif echo "$MSG" | grep -qiE "^feat(\(.+\))?:"; then
+              echo "bump=minor" >> "$GITHUB_OUTPUT"
+            else
+              echo "bump=patch" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+      # ── Calculate new version ────────────────────────────────────────────
+      - name: Calculate new version
+        id: bump
+        run: |
+          BUMP="${{ steps.resolve_bump.outputs.bump }}"
+
+          # Find the latest semver tag (vX.Y.Z), falling back to v1.0.0.
+          LATEST=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' \
+                   | sort -V | tail -1)
+          LATEST="${LATEST:-v1.0.0}"
+          echo "Latest tag: $LATEST"
+
+          # Strip the leading 'v'.
+          VERSION="${LATEST#v}"
+          MAJOR=$(echo "$VERSION" | cut -d. -f1)
+          MINOR=$(echo "$VERSION" | cut -d. -f2)
+          PATCH=$(echo "$VERSION" | cut -d. -f3)
+
+          case "$BUMP" in
+            major) MAJOR=$((MAJOR+1)); MINOR=0; PATCH=0 ;;
+            minor) MINOR=$((MINOR+1)); PATCH=0 ;;
+            patch) PATCH=$((PATCH+1)) ;;
+          esac
+
+          NEW="$MAJOR.$MINOR.$PATCH"
+          echo "New version: $NEW"
+          echo "new_version=$NEW" >> "$GITHUB_OUTPUT"
+          echo "tag=v$NEW"        >> "$GITHUB_OUTPUT"
+
+      # ── Update pyproject.toml ────────────────────────────────────────────
+      - name: Update version in pyproject.toml # handles both ' and " quotes
+        run: |
+          NEW="${{ steps.bump.outputs.new_version }}"
+          # Replaces the first `version = '...'` or `version = "..."` under [project].
+          # Uses a Perl-compatible regex so we can back-reference the original quote char.
+          perl -i -0pe \
+            "s/(^version\s*=\s*)(['\"])([^'\"]*)\2/\${1}\${2}$NEW\${2}/m" \
+            pyproject.toml
+
+      # ── Update __init__.py (if it exists) ────────────────────────────────
+      - name: Update __version__ in __init__.py # handles both ' and " quotes
+        run: |
+          NEW="${{ steps.bump.outputs.new_version }}"
+          INIT=$(find vndecorrelate -name "__init__.py" | head -1)
+          if [ -n "$INIT" ]; then
+            perl -i -pe \
+              "s/^(__version__\s*=\s*)(['\"])([^'\"]*)\2/\${1}\${2}$NEW\${2}/" \
+              "$INIT"
+            echo "Updated $INIT"
+          else
+            echo "No __init__.py found under vndecorrelate/ — skipping."
+          fi
+
+      # ── Update CITATION.cff (if it exists) ──────────────────────────────
+      # CITATION.cff uses bare YAML scalars for both `version` and
+      # `date-released`, e.g.:
+      #   version: 1.2.3
+      #   date-released: '2024-01-01'
+      - name: Update version in CITATION.cff
+        run: |
+          NEW="${{ steps.bump.outputs.new_version }}"
+          TODAY=$(date -u +%Y-%m-%d)
+          if [ -f CITATION.cff ]; then
+            # `version:` is an unquoted scalar — replace it directly.
+            sed -i "s/^version: .*/version: $NEW/" CITATION.cff
+            # `date-released:` may be quoted or unquoted; handle both.
+            sed -i "s/^date-released: .*/date-released: '$TODAY'/" CITATION.cff
+            echo "Updated CITATION.cff → version $NEW, date-released $TODAY"
+          else
+            echo "No CITATION.cff found — skipping."
+          fi
+
+      # ── Update README badge ──────────────────────────────────────────────
+      - name: Update version badge in README.md
+        run: |
+          NEW="${{ steps.bump.outputs.new_version }}"
+          # Matches shields.io badges of the form:
+          #   ![Version](https://img.shields.io/badge/version-X.Y.Z-blue)
+          # Adjust the colour slug (blue) if your badge uses a different one.
+          sed -i \
+            "s|img.shields.io/badge/version-[0-9]*\.[0-9]*\.[0-9]*-|img.shields.io/badge/version-$NEW-|g" \
+            README.md
+
+      # ── Commit, tag, and push ────────────────────────────────────────────
+      - name: Commit version bump
+        run: |
+          TAG="${{ steps.bump.outputs.tag }}"
+          NEW="${{ steps.bump.outputs.new_version }}"
+
+          git add pyproject.toml README.md
+          # Stage CITATION.cff if it exists.
+          [ -f CITATION.cff ] && git add CITATION.cff || true
+          # Only add __init__.py if it was actually touched.
+          git diff --cached --name-only | grep -q "__init__.py" || \
+            git add $(find vndecorrelate -name "__init__.py" 2>/dev/null) 2>/dev/null || true
+
+          git commit -m "chore(release): bump version to $NEW [skip ci]"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin HEAD:main --follow-tags
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # JOB 2 — build  (depends on version job)
+  # ──────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build distribution packages
+    runs-on: ubuntu-latest
+    needs: version
+
+    steps:
+      - name: Checkout repository at new tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      # Verify the distribution is valid before we release anything.
+      - name: Check distribution with twine
+        run: |
+          uv run --with twine twine check dist/*
+
+      - name: Upload build artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-packages
+          path: dist/
+          retention-days: 7
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # JOB 3 — github-release  (depends on build job)
+  # ──────────────────────────────────────────────────────────────────────────
+  github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [version, build]
+
+    steps:
+      - name: Checkout repository (for changelog generation)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Download build artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-packages
+          path: dist/
+
+      # Generate a simple changelog from commits since the previous tag.
+      - name: Generate release notes
+        id: notes
+        run: |
+          TAG="${{ needs.version.outputs.tag }}"
+          PREV=$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' \
+                 | sort -V | tail -2 | head -1)
+
+          if [ -z "$PREV" ] || [ "$PREV" = "$TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="$PREV..$TAG"
+          fi
+
+          NOTES=$(git log "$RANGE" \
+                  --pretty=format:"* %s (%h)" \
+                  --no-merges)
+
+          # Write multi-line notes to the step summary file.
+          {
+            echo "## What's changed"
+            echo ""
+            echo "$NOTES"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Pass to the next step via an environment file.
+          {
+            echo "NOTES<<EOF"
+            echo "## What's changed"
+            echo ""
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.version.outputs.tag }}
+          name: "Release ${{ needs.version.outputs.tag }}"
+          body: ${{ env.NOTES }}
+          files: dist/*
+          draft: false
+          prerelease: false
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # JOB 4 — pypi-publish  (depends on build job, uses trusted publisher)
+  # ──────────────────────────────────────────────────────────────────────────
+  pypi-publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: [version, build]
+    # This environment must match the one you registered on PyPI.
+    environment:
+      name: pypi
+      url: https://pypi.org/p/vndecorrelate
+
+    steps:
+      - name: Download build artefacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist-packages
+          path: dist/
+
+      - name: Publish to PyPI (Trusted Publisher / OIDC)
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # No `password:` needed — OIDC token is minted automatically
+        # by the `id-token: write` permission declared at the top.
