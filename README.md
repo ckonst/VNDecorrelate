@@ -87,15 +87,15 @@ wavfile.write('audio/viola_out.wav', fs, output_signal)
 ## Optimization
 `optimization.py` contains functions for optimizing `VelvetNoise` or `HaasEffect` for maximizing stereo seperation while maintaining polar sample symmetry and mono compatiblilty.
 
-`optimize_velvet_noise` optimizes the concentration of impulses towards the start of the filter: $\kappa \in [0.0, 1.0]$, referred to as `log_distribution_strength`.
+`optimize_velvet_noise` optimizes the concentration of impulses towards the start of the filter: ![Kappa](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Kappa.svg), referred to as `log_distribution_strength`.
 
-`optimize_haas_delay` optimizes the `delay_time_seconds` parameter: $\tau \in [0.0, \text{max\\_delay\\_seconds}]$
+`optimize_haas_delay` optimizes the `delay_time_seconds` parameter: ![Tau](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Tau.svg)
 
 `symmetry_aware_objective` takes the input signal and converts it to polar samples to compute the scalar objective function defined by:
 
-$f(\alpha) = E_w[\theta^2] - \lambda_1(E_w[\theta])^2 - \lambda_2(E_w[\theta^3])^2  - \lambda_3r^2 - \lambda_4(max|{\theta}| - \phi)^2$
+![Symmetry Aware Objective](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Symmetry%20Aware%20Objective.svg)
 
-where $\alpha$ is the input scalar to optimize, each $E_w[\theta^n]$ is a moment of the polar sample distribution: $E_w[\theta^2]$ is the weighted angular variance, $(E_w[\theta])^2$ is the weighted mean (centroid), and $(E_w[\theta^3])^2$ is the skewness. $r$ is the correlation between the input left and right channels, $\phi$ is the `angle_limit` parameter, and each $\lambda_n$ is a penalty weight.
+where α is the input scalar to optimize, each ![Moment](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Moment.svg) is a moment of the polar sample distribution: ![Weighted Angular Variance](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Weighted%20Angular%20Variance.svg) is the weighted angular variance, ![Centroid](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Centroid.svg) is the weighted mean (centroid), and ![Skewness](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Skewness.svg) is the skewness. _r_ is the correlation between the input left and right channels, φ is the `angle_limit` parameter, and each ![Lambda](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda.svg) is a penalty weight.
 
 Sample runs of `VelvetNoise.decorrelate` with unoptimized and optimized filters can be compared by their polar sample plots generated from `plot_polar_sample`:
 
