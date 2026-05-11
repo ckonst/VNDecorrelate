@@ -30,7 +30,6 @@ def polar_skewness(
     thetas: NDArray, weights: NDArray, angular_variance: NDArray
 ) -> float:
     """Return the skewness of the polar samples: ``E_w[θ³]``"""
-
     return (
         float(np.sum(weights * thetas**3))
         /
@@ -44,30 +43,15 @@ def max_angular_exceedance(thetas: NDArray, angle_limit: float) -> float:
     return max(0.0, float(np.max(np.abs(thetas)) - angle_limit))
 
 
-def left_right_correlation_objective(
-    input_signal: NDArray,
-    decorrelator: Decorrelator,
-) -> float:
-    """Scalar objective for left-right correlation r optimization.
-
-    Returns a value to minimize.
-    """
-    output_signal = decorrelator.decorrelate(input_signal)
-
-    # left-right correlation: square of dot product => optimize to zero
-    dot_product_squared = left_right_correlation(output_signal) ** 2
-
-    return dot_product_squared
-
-
 def symmetry_aware_objective(
     input_signal: NDArray,
     decorrelator: Decorrelator,
-    angle_limit: float = np.pi / 4,
-    lambda_mean: float = 5.0,  # centroid penalty weight
-    lambda_skew: float = 2.0,  # skewness penalty weight
-    lambda_correlation: float = 15.0,  # correlation penalty weight
-    lambda_penalty: float = 1e3,  # constrain violation penalty
+    *,
+    angle_limit: float,
+    lambda_mean: float,  # centroid penalty weight
+    lambda_skew: float,  # skewness penalty weight
+    lambda_correlation: float,  # correlation penalty weight
+    lambda_penalty: float,  # constrain violation penalty
 ) -> float:
     """
     Scalar objective function for maximizing stereo width through a Convex Hull area proxy (weighted angular variance).
@@ -77,10 +61,10 @@ def symmetry_aware_objective(
 
     Terms
     -----
-    ``+E_w[θ²]``         spread — maximize hull area proxy
-    ``−λ₁·(E_w[θ])²``    centroid — keep hull centered on ``θ=0``
-    ``−λ₂·(E_w[θ³])²``   skewness — keep left/right halves balanced
-    ``-λ₃∙r``            correlation — keep left/right correlation = 0
+    ``+E_w[θ²]``         spread — maximize hull area proxy\n
+    ``−λ₁·(E_w[θ])²``    centroid — keep hull centered on ``θ = 0``\n
+    ``−λ₂·(E_w[θ³])²``   skewness — keep left/right halves balanced\n
+    ``-λ₃∙r²``            correlation — minimize squared left/right correlation ``r² → 0``\n
     ``-penalty``         angle constraint via quadratic penalty
     """
 
@@ -170,11 +154,30 @@ def optimize_local_minima(
 
 
 def optimize_haas_delay(
+    *,
     input_signal: NDArray,
     sample_rate_hz: int,
     max_delay_seconds: int,
     grid_size: int = 400,
+    angle_limit: float = np.pi / 4,
+    lambda_mean: float = 5.0,
+    lambda_skew: float = 2.0,
+    lambda_correlation: float = 15.0,
+    lambda_penalty: float = 1e3,
 ) -> float:
+    """Return the optimized ``delay_time_seconds`` of HaasEffect applied to ``input_signal`` given ``sample_rate_hz`` and ``max_delay_seconds``
+
+    Terms
+    -----
+    ``+E_w[θ²]``         spread — maximize hull area proxy\n
+    ``−λ₁·(E_w[θ])²``    centroid — keep hull centered on ``θ = 0``\n
+    ``−λ₂·(E_w[θ³])²``   skewness — keep left/right halves balanced\n
+    ``-λ₃∙r²``            correlation — minimize squared left/right correlation ``r² → 0``\n
+    ``-penalty``         angle constraint via quadratic penalty
+
+    Returns:
+        float: The optimized delay time :math:``τ ∈ [0.0 , max_delay_seconds]``, i.e. ``delay_time_seconds``
+    """
     # tau: length of delay for channel
     # TODO: compute grid_size based on nyquist criterion applied to tau-domain landscape
     taus = np.linspace(0.0, max_delay_seconds, grid_size)
@@ -205,19 +208,42 @@ def optimize_haas_delay(
                 delay_time_seconds=tau,
                 mode='LR',
             ),
+            angle_limit=angle_limit,
+            lambda_mean=lambda_mean,
+            lambda_skew=lambda_skew,
+            lambda_correlation=lambda_correlation,
+            lambda_penalty=lambda_penalty,
         ),
     )
 
 
 def optimize_velvet_noise(
+    *,
     input_signal: NDArray,
     sample_rate_hz: int,
     duration_seconds: float,
     num_impulses: int,
     seed: int = 1,
     grid_size: int = 400,
+    angle_limit: float = np.pi / 4,
+    lambda_mean: float = 5.0,
+    lambda_skew: float = 2.0,
+    lambda_correlation: float = 15.0,
+    lambda_penalty: float = 1e3,
 ) -> float:
-    # kappa: concentration of impulses toward start of sequence
+    """Return the optimized ``log_distribution_strength`` of log-distributed VelvetNoise applied to ``input_signal`` given ``duration_seconds``, ``num_impulses`` and ``seed``
+
+    Terms
+    -----
+    ``+E_w[θ²]``         spread — maximize hull area proxy\n
+    ``−λ₁·(E_w[θ])²``    centroid — keep hull centered on ``θ = 0``\n
+    ``−λ₂·(E_w[θ³])²``   skewness — keep left/right halves balanced\n
+    ``-λ₃∙r²``            correlation — minimize squared left/right correlation ``r² → 0``\n
+    ``-penalty``         angle constraint via quadratic penalty
+
+    Returns:
+        float: The optimized start-of-filter impulse concentration :math:``κ ∈ [0.0, 1.0]``, i.e. ``log_distribution_strength``
+    """
     # TODO: compute grid_size based on nyquist criterion applied to kappa-domain landscape
     kappas = np.linspace(0.0, 1.0, grid_size)
 
@@ -257,5 +283,10 @@ def optimize_velvet_noise(
                 mode='LR',
                 seed=seed,
             ),
+            angle_limit=angle_limit,
+            lambda_mean=lambda_mean,
+            lambda_skew=lambda_skew,
+            lambda_correlation=lambda_correlation,
+            lambda_penalty=lambda_penalty,
         ),
     )

@@ -388,7 +388,7 @@ class VelvetNoise(Decorrelator):
             density = self.density
             raise ValueError(
                 f'Velvet Noise Filter of length {self.fir_length_samples} with {self.num_impulses} impulses is not sparse. ({density=:.2f})\n'
-                '\tnum_impulses must be less than half the FIR length in samples.'
+                '\tnum_impulses must be less than 20% the FIR length in samples.'
             )
         # If segment_envelope is empty, use a single segment with no decay.
         if not self.segment_envelope:
@@ -635,12 +635,12 @@ def generate_velvet_noise(
 def convolve_velvet_noise(
     input_signal: NDArray, velvet_noise_filters: NDArray
 ) -> NDArray:
-    """Simple, stateless, but less performant alternative to ``VelvetNoise.convolve()`` for convolving velvet noise filters.
+    """Simple, stateless, but less performant alternative to ``VelvetNoise.convolve`` for convolving velvet noise filters.
     ``input_signal`` is an ``NDArray`` of shape ``(n, num_channels)`` and ``velvet_noise_filters`` is an ``NDArray`` of shape (m, num_channels).
     A ``ValueError`` is raised if the number of channels differs between ``input_signal`` and ``velvet_noise_filters``.
 
     ``velvet_noise_filters`` may also be assigned from ``VelvetNoise.FIR``. If ``generate_velvet_noise`` was used, then this function must be used for convolution.
-    While this convolution is optimized to take advantage of the sparseness of the velvet noise, it is generally slower due to more memory allocations.
+    While this convolution is optimized to take advantage of the sparseness of the velvet noise, it is generally slower due to extra memory allocations.
     """
     num_channels = 1 if input_signal.ndim == 1 else input_signal.shape[1]
 

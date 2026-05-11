@@ -18,8 +18,8 @@ def test__optimize_velvet_noise(viola_signal):
     num_impulses = 15
 
     kappa = optimize_velvet_noise(
-        viola,
-        fs,
+        input_signal=viola,
+        sample_rate_hz=fs,
         duration_seconds=duration_seconds,
         num_impulses=num_impulses,
     )
@@ -56,8 +56,8 @@ def test__optimize_haas_delay(viola_signal):
     max_delay_seconds = 0.03
 
     tau = optimize_haas_delay(
-        viola,
-        fs,
+        input_signal=viola,
+        sample_rate_hz=fs,
         max_delay_seconds=max_delay_seconds,
     )
     hed = HaasEffect(
