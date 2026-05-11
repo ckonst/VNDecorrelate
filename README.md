@@ -13,15 +13,15 @@ Velvet-Noise Decorrelation (VND) attempts to minimize these artifacts as well as
 
 Velvet Noise is a sparse noise sequence generated from randomly time-shifted impulses with a random value of either -1 or 1 [[2]](#2):
 
-![Basic Velvet Noise](tests/plots/Basic%20Velvet%20Noise%20Sequence.png)
+![Basic Velvet Noise](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/Basic%20Velvet%20Noise%20Sequence.png)
 
 To reduce transient smearing and frequency coloration you can apply a segmented decay envelope [[2]](#2):
 
-![Segmented Decaying Velvet Noise](tests/plots/Segmented%20Decaying%20Velvet%20Noise%20Sequence.png)
+![Segmented Decaying Velvet Noise](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/Segmented%20Decaying%20Velvet%20Noise%20Sequence.png)
 
 As well as logarithmically distributing the impulses towards the start of the sequence [[2]](#2):
 
-![Segmented Decaying Log Distributed Velvet Noise](tests/plots/Segmented%20Decaying%20Log%20Distributed%20Velvet%20Noise%20Sequence.png)
+![Segmented Decaying Log Distributed Velvet Noise](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/Segmented%20Decaying%20Log%20Distributed%20Velvet%20Noise%20Sequence.png)
 
 ## Quick Start
 
@@ -99,18 +99,18 @@ where $\alpha$ is the input scalar to optimize, each $E_w[\theta^n]$ is a moment
 
 Sample runs of `VelvetNoise.decorrelate` with unoptimized and optimized filters can be compared by their polar sample plots generated from `plot_polar_sample`:
 
-![Unoptimized VN Vectorscope](tests/plots/Unoptimized%20VN%20Vectorscope.png)
-![VN Optimized Vectorscope](tests/plots/VN%20Optimized%20Vectorscope.png)
+![Unoptimized VN Vectorscope](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/Unoptimized%20VN%20Vectorscope.png)
+![VN Optimized Vectorscope](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/VN%20Optimized%20Vectorscope.png)
 
 ## Visualization
 To provide further visualization of the effects decorrelation `plot_correlogram` is provided. Short windows of typically ~20ms are taken from two signals to calculate normalized cross-correlation values at various lag distances. `sine_sweep` can be used to generate a test signal that can be compared before and after applying a velvet noise decorrelation.
-![Sine Sweep Signal](tests/plots/Sine%20Sweep%20Signal.png)
+![Sine Sweep Signal](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/Sine%20Sweep%20Signal.png)
 We can use the auto correlogram as a baseline:
-![Sine Sweep Auto Correlogram](tests/plots/Sine%20Sweep%20Auto%20Correlogram.png)
+![Sine Sweep Auto Correlogram](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/Sine%20Sweep%20Auto%20Correlogram.png)
 Plot the cross correlogram after filtering each channel with velvet noise:
-![Velvet Noise Filtered Sine Sweep Cross Correlogram](tests/plots/Velvet%20Noise%20Filtered%20Sine%20Sweep%20Cross%20Correlogram.png)
+![Velvet Noise Filtered Sine Sweep Cross Correlogram](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/Velvet%20Noise%20Filtered%20Sine%20Sweep%20Cross%20Correlogram.png)
 And compare to the behavior of filtering with white noise:
-![White Noise Filtered Sine Sweep Cross Correlogram](tests/plots/White%20Noise%20Filtered%20Sine%20Sweep%20Cross%20Correlogram.png)
+![White Noise Filtered Sine Sweep Cross Correlogram](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/White%20Noise%20Filtered%20Sine%20Sweep%20Cross%20Correlogram.png)
 
 ## References
 <a id="1"> </a>
