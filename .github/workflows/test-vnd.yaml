@@ -3,7 +3,7 @@ name: Test VNDecorrelate
 on:
   push:
     paths:
-      - "vndecorrelate/**"
+      - "src/vndecorrelate/**"
       - "tests/**"
       - "audio/**"
       - "pyproject.toml"

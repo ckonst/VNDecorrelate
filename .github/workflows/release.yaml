@@ -19,7 +19,7 @@
 # • Your package uses pyproject.toml and stores its version in:
 #     [project]
 #     version = "x.y.z"
-#   and optionally in vndecorrelate/__init__.py:
+#   and optionally in src/vndecorrelate/__init__.py:
 #     __version__ = "x.y.z"
 #
 # • README.md already contains a badge using this exact placeholder text:
@@ -45,7 +45,7 @@ on:
     branches: [main]
     paths:
       # Only run when actual source changes land on main, not docs-only edits.
-      - "vndecorrelate/**"
+      - "src/vndecorrelate/**"
       - "pyproject.toml"
       - "uv.lock"
   workflow_dispatch:
@@ -149,14 +149,14 @@ jobs:
       - name: Update __version__ in __init__.py # handles both ' and " quotes
         run: |
           NEW="${{ steps.bump.outputs.new_version }}"
-          INIT=$(find vndecorrelate -name "__init__.py" | head -1)
+          INIT=$(find src/vndecorrelate -name "__init__.py" | head -1)
           if [ -n "$INIT" ]; then
             perl -i -pe \
               "s/^(__version__\s*=\s*)(['\"])([^'\"]*)\2/\${1}\${2}$NEW\${2}/" \
               "$INIT"
             echo "Updated $INIT"
           else
-            echo "No __init__.py found under vndecorrelate/ — skipping."
+            echo "No __init__.py found under src/vndecorrelate/ — skipping."
           fi
 
       # ── Update CITATION.cff (if it exists) ──────────────────────────────
@@ -200,7 +200,7 @@ jobs:
           [ -f CITATION.cff ] && git add CITATION.cff || true
           # Only add __init__.py if it was actually touched.
           git diff --cached --name-only | grep -q "__init__.py" || \
-            git add $(find vndecorrelate -name "__init__.py" 2>/dev/null) 2>/dev/null || true
+            git add $(find src/vndecorrelate -name "__init__.py" 2>/dev/null) 2>/dev/null || true
 
           git commit -m "chore(release): bump version to $NEW [skip ci]"
           git tag -a "$TAG" -m "Release $TAG"

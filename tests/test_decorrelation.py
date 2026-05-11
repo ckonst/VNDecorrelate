@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from vndecorrelate.decorrelation import (
+from src.vndecorrelate.decorrelation import (
     HaasEffect,
     SignalChain,
     VelvetNoise,

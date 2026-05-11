@@ -2,23 +2,23 @@ import numpy as np
 import pytest
 from scipy import signal
 
-from tests import IN_GHA
-from vndecorrelate.decorrelation import (
+from src.vndecorrelate.decorrelation import (
     VelvetNoise,
     WhiteNoise,
     generate_velvet_noise,
 )
-from vndecorrelate.utils.dsp import (
+from src.vndecorrelate.utils.dsp import (
     cross_correlogram,
     generate_decay_envelope,
     sine_sweep,
 )
-from vndecorrelate.utils.plot import (
+from src.vndecorrelate.utils.plot import (
     plot_correlogram,
     plot_polar_sample,
     plot_signal,
     plot_spectrogram,
 )
+from tests import IN_GHA
 
 
 @pytest.mark.skipif(IN_GHA, reason='Skipping in CI')

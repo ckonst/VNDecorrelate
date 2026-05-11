@@ -7,7 +7,7 @@ from typing import Any, Callable, Iterator, Protocol, Self, Sequence
 import numpy as np
 from numpy.typing import NDArray
 
-from vndecorrelate.utils.dsp import (
+from src.vndecorrelate.utils.dsp import (
     IDENTITY_ENVELOPE,
     LR_to_MS,
     MS_to_LR,
