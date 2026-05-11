@@ -1,5 +1,5 @@
 # VNDecorrelate
-![Version](https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge) [![PyPI](https://img.shields.io/pypi/v/your-package?style=for-the-badge)](https://pypi.org/project/vndecorrelate) ![Tests](https://github.com/ckonst/VNDecorrelate/actions/workflows/test-vnd.yaml/badge.svg?style=for-the-badge)
+![Version](https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge)[![PyPI](https://img.shields.io/pypi/v/your-package?style=for-the-badge)](https://pypi.org/project/vndecorrelate)![Tests](https://github.com/ckonst/VNDecorrelate/actions/workflows/test-vnd.yaml/badge.svg?style=for-the-badge)
 
 A Velvet-Noise Decorrelator for audio.
 
@@ -23,9 +23,12 @@ As well as logarithmically distributing the impulses towards the start of the se
 
 ![Segmented Decaying Log Distributed Velvet Noise](tests/plots/Segmented%20Decaying%20Log%20Distributed%20Velvet%20Noise%20Sequence.png)
 
-## Example Usage
+## Quick Start
 
-Start by loading an audio file.
+First install the package into your environment:
+```pip install vndecorrelate```
+
+Then load an audio file.
 
 ```python
 import scipy.io.wavfile as wavfile
@@ -78,7 +81,7 @@ output_signal = chain(input_signal)
 To listen back to the processed audio, simply save to a wav file locally.
 
 ```python
-wavfile.write('audio/viola_dec.wav', fs, output_signal)
+wavfile.write('audio/viola_out.wav', fs, output_signal)
 ```
 
 ## Optimization
