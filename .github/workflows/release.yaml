@@ -2,7 +2,7 @@
 #
 # Release Workflow — Python + uv
 # ─────────────────────────────────────────────────────────────────────────────
-# Triggers: push to `main` that touches source files, or a manual dispatch
+# Triggers: push to `master` that touches source files, or a manual dispatch
 #           where you choose the bump type (patch / minor / major).
 #
 # What it does:
@@ -42,9 +42,9 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    branches: [master]
     paths:
-      # Only run when actual source changes land on main, not docs-only edits.
+      # Only run when actual source changes land on master, not docs-only edits.
       - "src/vndecorrelate/**"
       - "pyproject.toml"
       - "uv.lock"
@@ -64,7 +64,7 @@ permissions:
 
 jobs:
   # ──────────────────────────────────────────────────────────────────────────
-  # JOB 1 — version  (runs on main runner, no special env needed)
+  # JOB 1 — version  (runs on master runner, no special env needed)
   # ──────────────────────────────────────────────────────────────────────────
   version:
     name: Bump version & tag
@@ -204,7 +204,7 @@ jobs:
 
           git commit -m "chore(release): bump version to $NEW [skip ci]"
           git tag -a "$TAG" -m "Release $TAG"
-          git push origin HEAD:main --follow-tags
+          git push origin HEAD:master --follow-tags
 
   # ──────────────────────────────────────────────────────────────────────────
   # JOB 2 — build  (depends on version job)
