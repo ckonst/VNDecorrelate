@@ -88,13 +88,15 @@ wavfile.write('audio/viola_out.wav', fs, output_signal)
 `optimization.py` contains functions for optimizing `VelvetNoise` or `HaasEffect` for maximizing stereo seperation while maintaining polar sample symmetry and mono compatiblilty.
 
 `optimize_velvet_noise` optimizes the concentration of impulses towards the start of the filter referred to as `log_distribution_strength`: 
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Kappa.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Kappa.svg">
   <img alt="Kappa" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Kappa.svg">
 </picture>
 
-`optimize_haas_delay` optimizes the `delay_time_seconds` parameter:
+`optimize_haas_delay` optimizes the `delay_time_seconds` parameter: 
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Tau.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Tau.svg">
@@ -110,23 +112,33 @@ wavfile.write('audio/viola_out.wav', fs, output_signal)
   <img alt="Symmetry Aware Objective" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Symmetry%20Aware%20Objective.svg">
 </picture>
 
-where α is the input scalar to optimize, each <picture>
+where α is the input scalar to optimize, each 
+
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Moment.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Moment.svg">
   <img alt="Moment" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Moment.svg">
-</picture> is a moment of the polar sample distribution: <picture>
+</picture> is a moment of the polar sample distribution: 
+
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Weighted%20Angular%20Variance.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Weighted%20Angular%20Variance.svg">
   <img alt="Weighted Angular Variance" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Weighted%20Angular%20Variance.svg">
-</picture> is the weighted angular variance, <picture>
+</picture> is the weighted angular variance, 
+
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Centroid.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Centroid.svg">
   <img alt="Centroid" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Centroid.svg">
-</picture> is the weighted mean (centroid), and <picture>
+</picture> is the weighted mean (centroid), and 
+
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Skewness.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Skewness.svg">
   <img alt="Skewness" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Skewness.svg">
-</picture> is the skewness. r is the correlation between the input left and right channels, φ is the `angle_limit` parameter, and each <picture>
+</picture> is the skewness. r is the correlation between the input left and right channels, φ is the `angle_limit` parameter, and each 
+
+<picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda.png">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda.svg">
   <img alt="Symmetry Aware Objective" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda.svg">
