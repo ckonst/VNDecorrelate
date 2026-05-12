@@ -475,8 +475,8 @@ wheels = [
 
 [[package]]
 name = "vndecorrelate"
-version = "1.0.0"
-source = { virtual = "." }
+version = "1.0.4"
+source = { editable = "." }
 dependencies = [
     { name = "matplotlib" },
     { name = "numpy" },

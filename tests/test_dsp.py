@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from src.vndecorrelate.utils.dsp import (
+from vndecorrelate.utils.dsp import (
     LR_to_MS,
     MS_to_LR,
     NormalizeMode,

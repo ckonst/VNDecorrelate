@@ -1,10 +1,10 @@
 import pytest
 import scipy.io.wavfile as wavfile
 
-from src.vndecorrelate.decorrelation import HaasEffect, VelvetNoise
-from src.vndecorrelate.optimization import optimize_haas_delay, optimize_velvet_noise
-from src.vndecorrelate.utils.dsp import mono_to_stereo
-from src.vndecorrelate.utils.plot import plot_polar_sample, plot_signal
+from vndecorrelate.decorrelation import HaasEffect, VelvetNoise
+from vndecorrelate.optimization import optimize_haas_delay, optimize_velvet_noise
+from vndecorrelate.utils.dsp import mono_to_stereo
+from vndecorrelate.utils.plot import plot_polar_sample, plot_signal
 
 
 @pytest.mark.skip

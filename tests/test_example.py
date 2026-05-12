@@ -1,8 +1,8 @@
 import pytest
 import scipy.io.wavfile as wavfile
 
-from src.vndecorrelate.decorrelation import SignalChain
 from tests import IN_GHA
+from vndecorrelate.decorrelation import SignalChain
 
 
 @pytest.mark.skipif(IN_GHA, reason='Skipping in CI')

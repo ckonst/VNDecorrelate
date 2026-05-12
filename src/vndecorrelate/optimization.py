@@ -4,8 +4,8 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import minimize_scalar
 
-from src.vndecorrelate.decorrelation import Decorrelator, HaasEffect, VelvetNoise
-from src.vndecorrelate.utils.dsp import EPSILON, polar_coordinates
+from vndecorrelate.decorrelation import Decorrelator, HaasEffect, VelvetNoise
+from vndecorrelate.utils.dsp import EPSILON, polar_coordinates
 
 
 def left_right_correlation(stereo_signal: NDArray) -> float:

@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from numpy.typing import NDArray
 
-from src.vndecorrelate.utils.dsp import polar_coordinates
+from vndecorrelate.utils.dsp import polar_coordinates
 
 
 def plot_correlogram(
