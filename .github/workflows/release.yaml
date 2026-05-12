@@ -41,13 +41,14 @@
 name: Release
 
 on:
-  push:
-    branches: [master]
-    paths:
-      # Only run when actual source changes land on master, not docs-only edits.
-      - "src/vndecorrelate/**"
-      - "pyproject.toml"
-      - "uv.lock"
+  # for now just do workflow dispatch
+  # push:
+  #   branches: [master]
+  #   paths:
+  #     # Only run when actual source changes land on master, not docs-only edits.
+  #     - "src/vndecorrelate/**"
+  #     - "pyproject.toml"
+  #     - "uv.lock"
   workflow_dispatch:
     inputs:
       bump:
