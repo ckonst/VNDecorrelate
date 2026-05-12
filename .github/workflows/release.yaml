@@ -149,7 +149,7 @@ jobs:
       - name: Update __version__ in __init__.py # handles both ' and " quotes
         run: |
           NEW="${{ steps.bump.outputs.new_version }}"
-          INIT=$(find src/ -name "__init__.py" | head -1)
+          INIT=$(find src -name "__init__.py" | head -1)
           if [ -n "$INIT" ]; then
             perl -i -pe \
               "s/^(__version__\s*=\s*)(['\"])([^'\"]*)\2/\${1}\${2}$NEW\${2}/" \
