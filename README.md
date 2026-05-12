@@ -41,6 +41,7 @@ Then you can simply use the `VelvetNoise` class:
 
 ```python
 velvet_noise = VelvetNoise(
+    sample_rate_hz=fs,
     duration_seconds=0.03,
     num_impulses=30,
 )
