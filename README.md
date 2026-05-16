@@ -88,15 +88,95 @@ wavfile.write('audio/viola_out.wav', fs, output_signal)
 ## Optimization
 `optimization.py` contains functions for optimizing `VelvetNoise` or `HaasEffect` for maximizing stereo seperation while maintaining polar sample symmetry and mono compatiblilty.
 
-`optimize_velvet_noise` optimizes the concentration of impulses towards the start of the filter referred to as `log_distribution_strength`: ![Kappa](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Kappa.svg)
+`optimize_velvet_noise` optimizes the concentration of impulses towards the start of the filter referred to as `log_distribution_strength`: 
 
-`optimize_haas_delay` optimizes the `delay_time_seconds` parameter: ![Tau](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Tau.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Kappa%20Dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Kappa.svg">
+  <img alt="Kappa" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Kappa.svg">
+</picture>
+
+`optimize_haas_delay` optimizes the `delay_time_seconds` parameter: 
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Tau%20Dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Tau.svg">
+  <img alt="Tau" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Tau.svg">
+</picture>
 
 `symmetry_aware_objective` takes the input signal and converts it to polar samples to compute the scalar objective function defined by:
 
-![Symmetry Aware Objective](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Symmetry%20Aware%20Objective.svg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Symmetry%20Aware%20Objective%20Dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Symmetry%20Aware%20Objective.svg">
+  <img alt="Symmetry Aware Objective" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Symmetry%20Aware%20Objective.svg">
+</picture>
 
-where ![Alpha](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Alpha.svg) is the input scalar to optimize, each ![Moment](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Moment.svg) is a moment of the polar sample distribution: ![Weighted Angular Variance](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Weighted%20Angular%20Variance.svg) is the weighted angular variance, ![Centroid](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Centroid.svg) is the weighted mean (centroid), and ![Skewness](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Skewness.svg) is the skewness. ![R](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/R.svg) is the correlation between the input left and right channels, ![Phi](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Phi.svg) is the `angle_limit` parameter, and each ![Lambda](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda.svg) is a penalty weight.
+where 
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Alpha%20Dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Alpha.svg">
+  <img alt="Alpha" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Alpha.svg">
+</picture>
+
+is the input scalar to optimize, each
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Moment%20Dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Moment.svg">
+  <img alt="Moment" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Moment.svg">
+</picture>
+
+is a moment of the polar sample distribution:
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Weighted%20Angular%20Variance%20Dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Weighted%20Angular%20Variance.svg">
+  <img alt="Weighted Angular Variance" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Weighted%20Angular%20Variance.svg">
+</picture>
+
+is the weighted angular variance,
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Centroid%20Dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Centroid.svg">
+  <img alt="Centroid" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Centroid.svg">
+</picture>
+
+is the weighted mean (centroid), and
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Skewness%20Dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Skewness.svg">
+  <img alt="Skewness" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Skewness.svg">
+</picture>
+
+is the skewness. 
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/R%20Dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/R.svg">
+  <img alt="R" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/R.svg">
+</picture>
+
+is the correlation between the input left and right channels,
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Phi%20Dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Phi.svg">
+  <img alt="Phi" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Phi.svg">
+</picture>
+
+is the `angle_limit` parameter, and each
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda%20Dark.svg">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda.svg">
+  <img alt="Lambda" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda.svg">
+</picture>
+
+is a penalty weight.
 
 
 Sample runs of `VelvetNoise.decorrelate` with unoptimized and optimized filters can be compared by their polar sample plots generated from `plot_polar_sample`:
