@@ -110,9 +110,7 @@ wavfile.write('audio/viola_out.wav', fs, output_signal)
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Symmetry%20Aware%20Objective%20Dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Symmetry%20Aware%20Objective.svg">
   <img alt="Symmetry Aware Objective" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Symmetry%20Aware%20Objective.svg">
-</picture>
-
-where 
+</picture> <br> where
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Alpha%20Dark.svg">
@@ -125,24 +123,28 @@ where
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Moment.svg">
   <img alt="Moment" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Moment.svg">
 </picture> is a moment of the polar sample distribution:
+<br>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Weighted%20Angular%20Variance%20Dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Weighted%20Angular%20Variance.svg">
   <img alt="Weighted Angular Variance" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Weighted%20Angular%20Variance.svg">
-</picture> is the weighted angular variance,
+</picture> is the weighted angular variance
+<br>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Centroid%20Dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Centroid.svg">
   <img alt="Centroid" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Centroid.svg">
-</picture> is the weighted mean (centroid), and
+</picture> is the weighted mean (centroid)
+<br>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Skewness%20Dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Skewness.svg">
   <img alt="Skewness" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Skewness.svg">
-</picture> is the skewness. 
+</picture> is the skewness,
+<br>
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/R%20Dark.svg">
@@ -154,14 +156,13 @@ where
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Phi%20Dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Phi.svg">
   <img alt="Phi" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Phi.svg">
-</picture> is the `angle_limit` parameter, and each
+</picture> is the angle constraint threshold, and each
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda%20Dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda.svg">
   <img alt="Lambda" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Phi.svg">
 </picture> is a penalty weight.
-
 
 Sample runs of `VelvetNoise.decorrelate` with unoptimized and optimized filters can be compared by their polar sample plots generated from `plot_polar_sample`:
 
