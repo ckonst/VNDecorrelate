@@ -161,7 +161,7 @@ wavfile.write('audio/viola_out.wav', fs, output_signal)
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda%20Dark.svg">
   <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda.svg">
-  <img alt="Lambda" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Phi.svg">
+  <img alt="Lambda" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda.svg">
 </picture> is a penalty weight.
 
 Sample runs of `VelvetNoise.decorrelate` with unoptimized and optimized filters can be compared by their polar sample plots generated from `plot_polar_sample`:
