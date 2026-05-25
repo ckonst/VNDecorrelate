@@ -19,7 +19,7 @@ To reduce transient smearing and frequency coloration you can apply a segmented 
 
 ![Segmented Decaying Velvet Noise](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/Segmented%20Decaying%20Velvet%20Noise%20Sequence.png)
 
-As well as logarithmically distributing the impulses towards the start of the sequence [[2]](#2):
+As well as logarithmically distribute the impulses towards the start of the sequence [[2]](#2):
 
 ![Segmented Decaying Log Distributed Velvet Noise](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/Segmented%20Decaying%20Log%20Distributed%20Velvet%20Noise%20Sequence.png)
 
