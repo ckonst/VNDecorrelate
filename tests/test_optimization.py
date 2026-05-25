@@ -36,7 +36,7 @@ def test__optimize_velvet_noise(viola_signal):
 
     print(f'Optimized Kappa: {kappa}')
 
-    wavfile.write('audio/viola_opt.wav', fs, output_signal)
+    wavfile.write('audio/viola_optimized_vnd.wav', fs, output_signal)
 
     plot_signal(
         vnd.FIR,
@@ -69,6 +69,6 @@ def test__optimize_haas_delay(viola_signal):
 
     print(f'Optimized Tau: {tau}')
 
-    wavfile.write('audio/viola_haas.wav', fs, output_signal)
+    wavfile.write('audio/viola_optimized_hed.wav', fs, output_signal)
 
     plot_polar_sample(output_signal, title='HE Optimized Vectorscope')

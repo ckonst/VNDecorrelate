@@ -8,8 +8,8 @@ def guitar_signal():
 
 
 @pytest.fixture(scope='session')
-def pop_shuffle_signal():
-    return wavfile.read('audio/pop_shuffle.wav')
+def drums_signal():
+    return wavfile.read('audio/drums.wav')
 
 
 @pytest.fixture(scope='session')
