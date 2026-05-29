@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import StrEnum
 from functools import partial
 from typing import Any, Callable, Iterator, Protocol, Self, Sequence
 
@@ -9,6 +8,7 @@ from numpy.typing import NDArray
 
 from vndecorrelate.utils.dsp import (
     IDENTITY_ENVELOPE,
+    LayoutMode,
     LR_to_MS,
     MS_to_LR,
     apply_log_distribution,
@@ -153,11 +153,6 @@ class SignalChain(SignalProcessor):
         self._hot = True
 
 
-class DecorrelateMode(StrEnum):
-    LR = 'LR'  # Left-Right
-    MS = 'MS'  # Mid-Side
-
-
 # ----------------------------------------------------------------------------
 #
 # Haas Effect Decorrelator
@@ -184,7 +179,7 @@ class HaasEffect(Decorrelator):
                 0 is the mid channel, 1 is the side channel.
         delay_time_seconds : float
             The time in seconds to delay the channel by.
-        mode : HaasEffectMode
+        mode : DecorrelateMode
             If set to LR, the ``delayed_channel`` (either left or right) will be delayed.
             If set to MS, then the input channels will be converted to Mid-Side as though they were Left-Right, even if they're not.
 
@@ -192,7 +187,7 @@ class HaasEffect(Decorrelator):
 
     delayed_channel: int = 0
     delay_time_seconds: float = 0.02
-    mode: DecorrelateMode = DecorrelateMode.LR
+    mode: LayoutMode = LayoutMode.LR
 
     def decorrelate(self, input_signal: NDArray) -> NDArray:
         """Perform a Haas Effect decorrelation on ``input_signal``."""
@@ -219,14 +214,14 @@ class HaasEffect(Decorrelator):
 
         # side channel will be silent if the signal is mono,
         # since we already duplicated to stereo, we'll interpret that signal as Mid-Side.
-        if self.mode == DecorrelateMode.MS and not mono:
+        if self.mode == LayoutMode.MS and not mono:
             LR_to_MS(output_signal)
 
         output_signal[:, self.delayed_channel] = np.roll(
             output_signal[:, self.delayed_channel], delay_len_samples, axis=0
         )
 
-        if self.mode == DecorrelateMode.MS:
+        if self.mode == LayoutMode.MS:
             MS_to_LR(output_signal)
             if mono:
                 # we duplicated the mono channel, here we compensate for it.
@@ -363,7 +358,7 @@ class VelvetNoise(Decorrelator):
     log_distribution_strength: float = 1.0
     normalizer: Callable[[NDArray, NDArray], None] | None = rms_normalize
     filtered_channels: Sequence[int] = 0, 1
-    mode: DecorrelateMode = DecorrelateMode.MS
+    mode: LayoutMode = LayoutMode.MS
     seed: int | None = None
 
     # _velvet_noise maps each channel to a list of equal length segments, determined by segment_envelope.
@@ -435,7 +430,7 @@ class VelvetNoise(Decorrelator):
 
         output_signal = self.convolve(input_signal)
 
-        if self.mode == DecorrelateMode.MS:
+        if self.mode == LayoutMode.MS:
             encode_signal_to_side_channel(input_signal, output_signal)
 
         if self.width is not None:

@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+from matplotlib import pyplot as plt
 from scipy import signal
 
 from tests import IN_GHA
@@ -15,6 +16,8 @@ from vndecorrelate.utils.dsp import (
 )
 from vndecorrelate.utils.plot import (
     plot_correlogram,
+    plot_lissajous,
+    plot_polar_level,
     plot_polar_sample,
     plot_signal,
     plot_spectrogram,
@@ -42,6 +45,8 @@ def test_plots_basic(viola_signal):
         ),
         title='Basic Velvet Noise Sequence',
     )
+    plt.savefig('./tests/plots/Basic Velvet Noise Sequence.png')
+    plt.close()
 
     plot_signal(
         generate_velvet_noise(
@@ -54,6 +59,8 @@ def test_plots_basic(viola_signal):
         ),
         title='Segmented Decaying Velvet Noise Sequence',
     )
+    plt.savefig('./tests/plots/Segmented Decaying Velvet Noise Sequence.png')
+    plt.close()
 
     plot_signal(
         generate_velvet_noise(
@@ -67,6 +74,10 @@ def test_plots_basic(viola_signal):
         ),
         title='Segmented Decaying Log Distributed Velvet Noise Sequence',
     )
+    plt.savefig(
+        './tests/plots/Segmented Decaying Log Distributed Velvet Noise Sequence.png'
+    )
+    plt.close()
 
     vnd = VelvetNoise(
         sample_rate_hz=fs,
@@ -80,8 +91,12 @@ def test_plots_basic(viola_signal):
     vns = vnd.FIR
 
     plot_signal(vns[:, 0], title='Velvet Noise Sequence L')
+    plt.savefig('./tests/plots/Velvet Noise Sequence L.png')
+    plt.close()
 
     plot_signal(vns[:, 1], title='Velvet Noise Sequence R')
+    plt.savefig('./tests/plots/Velvet Noise Sequence R.png')
+    plt.close()
 
     fir = generate_velvet_noise(
         sample_rate_hz=fs,
@@ -94,20 +109,28 @@ def test_plots_basic(viola_signal):
     )
 
     plot_signal(fir[:, 0], title='Generated Velvet Noise Sequence L')
+    plt.savefig('./tests/plots/Generated Velvet Noise Sequence L.png')
+    plt.close()
+
     plot_signal(fir[:, 1], title='Generated Velvet Noise Sequence R')
+    plt.savefig('./tests/plots/Generated Velvet Noise Sequence R.png')
+    plt.close()
 
     plot_signal(viola, title='Input')
-    plot_signal(result, title='Output')
+    plt.savefig('./tests/plots/Input.png')
+    plt.close()
 
-    assert True
+    plot_signal(result, title='Output')
+    plt.savefig('./tests/plots/Output.png')
+    plt.close()
 
 
 @pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
 def test_plot_signal():
     x = np.random.uniform(size=100)
     plot_signal(x)
-
-    assert True
+    plt.savefig('./tests/plots/Signal.png')
+    plt.close()
 
 
 @pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
@@ -122,6 +145,9 @@ def test__plot_sine_sweep_correlogram():
     plot_spectrogram(
         signal.spectrogram(_sine_sweep, fs=fs)[-1], title='Sine Sweep Signal'
     )
+    plt.savefig('./tests/plots/Sine Sweep Signal.png')
+    plt.close()
+
     correlogram = cross_correlogram(
         _sine_sweep,
         _sine_sweep,
@@ -136,7 +162,8 @@ def test__plot_sine_sweep_correlogram():
         time_seconds=5,
         title='Sine Sweep Auto Correlogram',
     )
-    assert True
+    plt.savefig('./tests/plots/Sine Sweep Auto Correlogram.png')
+    plt.close()
 
 
 @pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
@@ -170,6 +197,8 @@ def test__plot_correlogram_from_file(viola_signal):
         time_seconds=5,
         title='Viola Velvet Noise Cross Correlogram',
     )
+    plt.savefig('./tests/plots/Viola Velvet Noise Cross Correlogram.png')
+    plt.close()
 
     wnd = WhiteNoise(
         sample_rate_hz=fs,
@@ -192,10 +221,8 @@ def test__plot_correlogram_from_file(viola_signal):
         time_seconds=5,
         title='Viola White Noise Cross Correlogram',
     )
-
-    plot_polar_sample(vnd_output, title='Unoptimized VN Vectorscope')
-
-    assert True
+    plt.savefig('./tests/plots/Viola White Noise Cross Correlogram.png')
+    plt.close()
 
 
 @pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
@@ -234,6 +261,8 @@ def test__plot_filtered_sine_sweep_correlogram():
         time_seconds=5,
         title='Velvet Noise Filtered Sine Sweep Cross Correlogram',
     )
+    plt.savefig('./tests/plots/Velvet Noise Filtered Sine Sweep Cross Correlogram.png')
+    plt.close()
 
     wnd = WhiteNoise(
         sample_rate_hz=fs,
@@ -256,5 +285,83 @@ def test__plot_filtered_sine_sweep_correlogram():
         time_seconds=5,
         title='White Noise Filtered Sine Sweep Cross Correlogram',
     )
+    plt.savefig('./tests/plots/White Noise Filtered Sine Sweep Cross Correlogram.png')
+    plt.close()
 
-    assert True
+
+@pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
+def test_plot_lissajous(viola_signal):
+    fs, input_signal = viola_signal
+
+    duration_seconds = 0.03
+
+    vnd = VelvetNoise(
+        sample_rate_hz=fs,
+        duration_seconds=duration_seconds,
+        num_impulses=30,
+        log_distribution_strength=1.0,
+        filtered_channels=(0,),
+        mode='LR',
+        seed=1,
+    )
+
+    output_signal = vnd(input_signal)
+
+    plot_lissajous(
+        input_signal=output_signal, sample_rate_hz=fs, title='Viola Lissajous'
+    )
+    plt.savefig('./tests/plots/Viola Lissajous.png')
+    plt.close()
+
+
+@pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
+def test_plot_heatmap(viola_signal):
+    fs, input_signal = viola_signal
+
+    duration_seconds = 0.03
+
+    vnd = VelvetNoise(
+        sample_rate_hz=fs,
+        duration_seconds=duration_seconds,
+        num_impulses=30,
+        log_distribution_strength=1.0,
+        filtered_channels=(0,),
+        mode='LR',
+        seed=1,
+    )
+
+    output_signal = vnd(input_signal)
+
+    plot_polar_sample(
+        input_signal=output_signal,
+        sample_rate_hz=fs,
+        title='Viola Polar Sample',
+        mode='both',
+    )
+    plt.savefig('./tests/plots/Viola Polar Sample.png')
+    plt.close()
+
+
+@pytest.mark.skipif(IN_GHA, reason='Skipping in CI')
+def test_plot_polar_level(guitar_signal):
+    fs, input_signal = guitar_signal
+
+    duration_seconds = 0.03
+
+    vnd = VelvetNoise(
+        sample_rate_hz=fs,
+        duration_seconds=duration_seconds,
+        num_impulses=30,
+        log_distribution_strength=1.0,
+        filtered_channels=(0,),
+        mode='LR',
+        seed=1,
+    )
+
+    output_signal = vnd(input_signal)
+
+    plot_polar_level(
+        input_signal=output_signal, sample_rate_hz=fs, title='Guitar Polar Level'
+    )
+    plt.savefig('./tests/plots/Guitar Polar Level.png')
+    plt.close()

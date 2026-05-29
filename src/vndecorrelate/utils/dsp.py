@@ -13,6 +13,11 @@ class NormalizeMode(StrEnum):
     DUAL_MONO = 'dual_mono'
 
 
+class LayoutMode(StrEnum):
+    LR = 'LR'  # Left-Right
+    MS = 'MS'  # Mid-Side
+
+
 def apply_stereo_width(input_signal: NDArray, width: float) -> None:
     """Return ``input_signal`` with the Mid-Side balance interpolated at width.
 
@@ -367,19 +372,61 @@ def sine_sweep(
 
 
 def polar_coordinates(
-    left: NDArray, right: NDArray, normalize: bool = True
+    left: NDArray,
+    right: NDArray,
+    mode: LayoutMode = 'MS',
+    semicircular: bool = True,
+    normalize: bool = True,
+    compute_weights: bool = True,
 ) -> tuple[NDArray, NDArray, NDArray]:
-    """Return each sample of the ``left`` and ``right`` channels as polar coordinates with amplitude weights: ``(radii, thetas, weights)``."""
-    # atan2 gives angle in radians; the (L-R, L+R) formulation
-    # naturally spans [-π/2, π/2] (the 180° stereo field)
-    thetas = np.arctan2(left - right, left + right)  # radians, [-π/2, +π/2]
-    radii = np.sqrt(left**2 + right**2)  # magnitude [0, √2]
-    weights = radii / (radii.sum() + EPSILON)  # amplitude-weights
+    """Return each sample of the ``left`` and ``right`` channels as polar coordinates,
+    by default amplitude weights are also returned: ``(radii, thetas, weights)``.
 
+    Parameters
+    ----------
+    left: NDArray, shape (n,)
+        The left channel with values in [-1, 1]
+    right: NDArray, shape (n,)
+        The right channel with values in [-1, 1]
+    mode: LayoutMode
+        The channel layout to use for calculating angle. Defaults to LayoutMode.MS (Mid-Side).
+    normalize: bool
+        Whether to normalize the radii component of the polar coordinates. Default is True.
+    compute_weights: bool
+        Whether to compute and return amplitude weights for the polar coordinates.
+    """
+    # in radians, (-π, +π]
+    thetas = (
+        np.arctan2(left - right, left + right)
+        if mode == LayoutMode.MS
+        else np.arctan2(left, right)
+    )
+
+    # Fold the full (-180, 180] range onto [-90, 90] by wrapping the
+    # bottom half of the circle (inverted-mono region) onto the top half.
+    if semicircular:
+        thetas = np.where(
+            thetas < -np.pi / 2,
+            thetas + np.pi,
+            np.where(thetas > np.pi / 2, thetas - np.pi, thetas),
+        )
+
+    radii = np.sqrt(left**2 + right**2)
     if normalize:
         radii /= radii.max() + EPSILON
 
-    return radii, thetas, weights
+    if compute_weights:
+        weights = radii / (radii.sum() + EPSILON)  # amplitude-weights
+
+        return radii, thetas, weights
+    return radii, thetas
+
+
+def polar_to_cartesian(
+    angles_degrees: NDArray, radii: NDArray
+) -> tuple[NDArray, NDArray]:
+    thetas = np.radians(angles_degrees)
+    return radii * np.sin(thetas), radii * np.cos(thetas)
 
 
 def exponential_decay(t: float, k: float = 2) -> float:
@@ -409,3 +456,10 @@ def generate_decay_envelope(
         exponential_decay((t / num_segments) + (segment_position * 1 / num_segments))
         for t in range(num_segments)
     )
+
+
+def radians_to_degrees(radians: NDArray) -> NDArray:
+    """Return the input array of radians as degrees."""
+    return np.clip(
+        np.degrees(radians), -90.0, 90.0
+    )  # Clip to ±90° (handles phase-inverted / out-of-phase samples gracefully)

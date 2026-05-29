@@ -164,12 +164,26 @@ wavfile.write('audio/viola_out.wav', fs, output_signal)
   <img alt="Lambda" src="https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/img/Lambda.svg">
 </picture> is a penalty weight.
 
+## Visualization
+
+### Vectorscopes
+
 Sample runs of `VelvetNoise.decorrelate` with unoptimized and optimized filters can be compared by their polar sample plots generated from `plot_polar_sample`:
 
-![Unoptimized VN Vectorscope](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/Unoptimized%20VN%20Vectorscope.png)
-![VN Optimized Vectorscope](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/VN%20Optimized%20Vectorscope.png)
+![VN Optimized Polar Sample](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/VN%20Optimized%20Polar%20Sample.png)
 
-## Visualization
+`plot_polar_level`:
+
+![VN Optimized Polar Level](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/VN%20Optimized%20Polar%20Level.png)
+
+or `plot_lissajous`:
+
+![VN Optimized Lissajous](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/VN%20Optimized%20Lissajous.png)
+
+These vectorscope functions loosely follow the design of Izotope's Ozone Imager [[3]](#3), an industry standard stereo imager plugin for Digital Audio Workstations.
+
+### Correlograms
+
 To provide further visualization of the effects decorrelation `plot_correlogram` is provided. Short windows of typically ~20ms are taken from two signals to calculate normalized cross-correlation values at various lag distances. `sine_sweep` can be used to generate a test signal that can be compared before and after applying a velvet noise decorrelation.
 ![Sine Sweep Signal](https://raw.githubusercontent.com/ckonst/VNDecorrelate/master/tests/plots/Sine%20Sweep%20Signal.png)
 We can use the auto correlogram as a baseline:
@@ -187,3 +201,8 @@ And compare to the behavior of filtering with white noise:
 
 <a id="2"> </a>
   [[2]](http://www.dafx17.eca.ed.ac.uk/papers/DAFx17_paper_96.pdf) B. Alary, A. Politis, and V. Välimäki, “VELVET-NOISE DECORRELATOR,” *Proceedings of the 20th International Conference on Digital Audio Effects (DAFx-17)*, Edinburgh, UK, Sep. 2017. Accessed: May 15, 2026. [Online]. Available: http://www.dafx17.eca.ed.ac.uk/papers/DAFx17_paper_96.pdf
+
+
+
+<a id="3"> </a>
+[[3]](https://downloads.izotope.com/docs/ozone8/imager/index.html#vectorscope) “Ozone 8 Help Documentation,” Izotope.com, 2017. https://downloads.izotope.com/docs/ozone8/imager/index.html#vectorscope (accessed Jun. 15, 2026).

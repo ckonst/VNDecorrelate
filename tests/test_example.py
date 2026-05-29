@@ -47,5 +47,3 @@ def test_example(
     fs, vocal = vocal_signal
     output_signal = chain(vocal)
     wavfile.write('audio/vocal_decorrelated.wav', fs, output_signal)
-
-    assert True

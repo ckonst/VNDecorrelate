@@ -1,10 +1,16 @@
 import pytest
 import scipy.io.wavfile as wavfile
+from matplotlib import pyplot as plt
 
 from vndecorrelate.decorrelation import HaasEffect, VelvetNoise
 from vndecorrelate.optimization import optimize_haas_delay, optimize_velvet_noise
 from vndecorrelate.utils.dsp import mono_to_stereo
-from vndecorrelate.utils.plot import plot_polar_sample, plot_signal
+from vndecorrelate.utils.plot import (
+    plot_lissajous,
+    plot_polar_level,
+    plot_polar_sample,
+    plot_signal,
+)
 
 
 @pytest.mark.skip
@@ -42,8 +48,66 @@ def test__optimize_velvet_noise(viola_signal):
         vnd.FIR,
         title='Optimized Velvet Noise Sequence',
     )
+    plt.savefig('./tests/plots/Optimized Velvet Noise Sequence.png')
+    plt.close()
 
-    plot_polar_sample(output_signal, title='VN Optimized Vectorscope')
+    unoptimized_output_signal = VelvetNoise(
+        sample_rate_hz=fs,
+        duration_seconds=duration_seconds,
+        num_impulses=30,
+        log_distribution_strength=1.0,
+        filtered_channels=(0,),
+        mode='LR',
+        seed=1,
+    )(viola)
+
+    background_color = '#0a0a0f'
+    _, all_axes = plt.subplots(1, 2, figsize=(22, 6), facecolor=background_color)
+
+    plot_polar_sample(
+        unoptimized_output_signal,
+        title='Unoptimized VN Polar Sample',
+        axes=all_axes[0],
+        mode='both',
+    )
+    plot_polar_sample(
+        output_signal,
+        title='VN Optimized Polar Sample',
+        axes=all_axes[1],
+        mode='both',
+    )
+    plt.savefig('./tests/plots/VN Optimized Polar Sample.png')
+    plt.close()
+
+    _, all_axes = plt.subplots(1, 2, figsize=(22, 6), facecolor=background_color)
+
+    plot_polar_level(
+        unoptimized_output_signal,
+        title='Unoptimized VN Polar Level',
+        axes=all_axes[0],
+    )
+    plot_polar_level(
+        output_signal,
+        title='VN Optimized Polar Level',
+        axes=all_axes[1],
+    )
+    plt.savefig('./tests/plots/VN Optimized Polar Level.png')
+    plt.close()
+
+    _, all_axes = plt.subplots(1, 2, figsize=(22, 6), facecolor=background_color)
+
+    plot_lissajous(
+        unoptimized_output_signal,
+        title='Unoptimized VN Lissajous',
+        axes=all_axes[0],
+    )
+    plot_lissajous(
+        output_signal,
+        title='VN Optimized Lissajous',
+        axes=all_axes[1],
+    )
+    plt.savefig('./tests/plots/VN Optimized Lissajous.png')
+    plt.close()
 
 
 @pytest.mark.skip
@@ -71,4 +135,6 @@ def test__optimize_haas_delay(viola_signal):
 
     wavfile.write('audio/viola_optimized_hed.wav', fs, output_signal)
 
-    plot_polar_sample(output_signal, title='HE Optimized Vectorscope')
+    plot_polar_sample(output_signal, title='HE Optimized Vectorscope', mode='scatter')
+    plt.savefig('./tests/plots/HE Optimized Vectorscope.png')
+    plt.close()
