@@ -19,7 +19,7 @@ def test_example(
     chain = (
         SignalChain(sample_rate_hz=fs)
         .velvet_noise(
-            duration_seconds=0.03,
+            duration_seconds=0.02,
             num_impulses=30,
             seed=1,
             log_distribution_strength=1.0,
