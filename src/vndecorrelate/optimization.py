@@ -105,11 +105,13 @@ def symmetry_aware_objective(
     return -objective  # minimizer convention
 
 
-def grid_scan(input_signal: NDArray, decorrelators: list[Decorrelator]) -> NDArray:
+def grid_scan(
+    input_signal: NDArray, decorrelators: list[Decorrelator], **kwargs
+) -> NDArray:
     print('Starting Grid Scan')
     return np.array(
         [
-            symmetry_aware_objective(input_signal, decorrelator)
+            symmetry_aware_objective(input_signal, decorrelator, **kwargs)
             for decorrelator in decorrelators
         ]
     )
@@ -191,7 +193,15 @@ def optimize_haas_delay(
         for tau in taus
     ]
 
-    scores = grid_scan(input_signal, haas_effect_decorrelators)
+    scores = grid_scan(
+        input_signal,
+        haas_effect_decorrelators,
+        angle_limit=angle_limit,
+        lambda_mean=lambda_mean,
+        lambda_skew=lambda_skew,
+        lambda_correlation=lambda_correlation,
+        lambda_penalty=lambda_penalty,
+    )
 
     # Identify local minima (best candidate regions)
     # A local min at index i: scores[i] < scores[i-1] and scores[i] < scores[i+1]
@@ -261,7 +271,15 @@ def optimize_velvet_noise(
         for kappa in kappas
     ]
 
-    scores = grid_scan(input_signal, velvet_noise_decorrelators)
+    scores = grid_scan(
+        input_signal,
+        velvet_noise_decorrelators,
+        angle_limit=angle_limit,
+        lambda_mean=lambda_mean,
+        lambda_skew=lambda_skew,
+        lambda_correlation=lambda_correlation,
+        lambda_penalty=lambda_penalty,
+    )
 
     # Identify local minima (best candidate regions)
     # A local min at index i: scores[i] < scores[i-1] and scores[i] < scores[i+1]
