@@ -179,7 +179,7 @@ class HaasEffect(Decorrelator):
                 0 is the mid channel, 1 is the side channel.
         delay_time_seconds : float
             The time in seconds to delay the channel by.
-        mode : DecorrelateMode
+        mode : LayoutMode
             If set to LR, the ``delayed_channel`` (either left or right) will be delayed.
             If set to MS, then the input channels will be converted to Mid-Side as though they were Left-Right, even if they're not.
 
@@ -345,7 +345,7 @@ class VelvetNoise(Decorrelator):
             The function used to normalize the output signal, if any. Defaults to RMS normalization.
         filtered_channels : Sequence[int]
             A sequence containing the channel indices of channels that will have a velvet noise filter applied.
-        mode : DecorrelateMode
+        mode : LayoutMode
             If LR: decorrelate by filtering the specified ``filtered_channels``.
             If MS: decorrelate by injecting the ``filtered_channels`` as the side channel of the final signal.
         seed : int
