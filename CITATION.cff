@@ -4,6 +4,6 @@ authors:
   - family-names: "Konstantinov"
     given-names: "Christian"
 title: "VNDecorrelate"
-version: 1.0.6
-date-released: '2026-06-11'
+version: 1.1.0
+date-released: '2026-06-15'
 url: "https://github.com/ckonst/VNDecorrelate"
