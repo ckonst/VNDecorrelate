@@ -9,6 +9,7 @@ from vndecorrelate.decorrelation import (
     convolve_velvet_noise,
     generate_velvet_noise,
 )
+from vndecorrelate.utils.dsp import SEGMENTED_DECAY_ENVELOPE
 
 
 def test__haas_effect_decorrelation():
@@ -74,7 +75,7 @@ def test__velvet_noise_generation_equality():
         num_impulses=30,
         num_outs=2,
         sample_rate_hz=44100,
-        segment_envelope=(0.85, 0.55, 0.35, 0.2),
+        segment_envelope=SEGMENTED_DECAY_ENVELOPE,
         log_distribution_strength=1.0,
         seed=1,
     )
@@ -84,7 +85,7 @@ def test__velvet_noise_generation_equality():
             num_impulses=30,
             num_outs=2,
             sample_rate_hz=44100,
-            segment_envelope=(0.85, 0.55, 0.35, 0.2),
+            segment_envelope=SEGMENTED_DECAY_ENVELOPE,
             log_distribution_strength=1.0,
             seed=1,
         ),
@@ -178,7 +179,7 @@ def test__convolve_velvet_noise_equality():
             num_impulses=30,
             num_outs=2,
             sample_rate_hz=44100,
-            segment_envelope=(0.85, 0.55, 0.35, 0.2),
+            segment_envelope=SEGMENTED_DECAY_ENVELOPE,
             log_distribution_strength=1.0,
             seed=1,
         ),
@@ -188,7 +189,7 @@ def test__convolve_velvet_noise_equality():
         num_impulses=30,
         num_outs=2,
         sample_rate_hz=44100,
-        segment_envelope=(0.85, 0.55, 0.35, 0.2),
+        segment_envelope=SEGMENTED_DECAY_ENVELOPE,
         log_distribution_strength=1.0,
         seed=1,
     ).convolve(input_signal)

@@ -91,11 +91,9 @@ def test_plots_basic(viola_signal):
     vns = vnd.FIR
 
     plot_signal(vns[:, 0], title='Velvet Noise Sequence L')
-    plt.savefig('./tests/plots/Velvet Noise Sequence L.png')
     plt.close()
 
     plot_signal(vns[:, 1], title='Velvet Noise Sequence R')
-    plt.savefig('./tests/plots/Velvet Noise Sequence R.png')
     plt.close()
 
     fir = generate_velvet_noise(
@@ -109,19 +107,15 @@ def test_plots_basic(viola_signal):
     )
 
     plot_signal(fir[:, 0], title='Generated Velvet Noise Sequence L')
-    plt.savefig('./tests/plots/Generated Velvet Noise Sequence L.png')
     plt.close()
 
     plot_signal(fir[:, 1], title='Generated Velvet Noise Sequence R')
-    plt.savefig('./tests/plots/Generated Velvet Noise Sequence R.png')
     plt.close()
 
     plot_signal(viola, title='Input')
-    plt.savefig('./tests/plots/Input.png')
     plt.close()
 
     plot_signal(result, title='Output')
-    plt.savefig('./tests/plots/Output.png')
     plt.close()
 
 
@@ -129,7 +123,6 @@ def test_plots_basic(viola_signal):
 def test_plot_signal():
     x = np.random.uniform(size=100)
     plot_signal(x)
-    plt.savefig('./tests/plots/Signal.png')
     plt.close()
 
 

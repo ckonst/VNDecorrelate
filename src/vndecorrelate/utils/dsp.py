@@ -5,7 +5,10 @@ from numpy.typing import NDArray
 
 EPSILON: float = 1e-10
 
+# An envelope with a single segment to leave a signal unchanged when applied.
 IDENTITY_ENVELOPE: tuple[float] = (1.0,)
+# An approximation of an exponential decay envelope using 4 equal-length segments, according to Alary et al.
+SEGMENTED_DECAY_ENVELOPE: tuple[float] = (0.85, 0.55, 0.35, 0.2)
 
 
 class NormalizeMode(StrEnum):
@@ -390,6 +393,8 @@ def polar_coordinates(
         The right channel with values in [-1, 1]
     mode: LayoutMode
         The channel layout to use for calculating angle. Defaults to LayoutMode.MS (Mid-Side).
+    semicircular: bool
+        TODO
     normalize: bool
         Whether to normalize the radii component of the polar coordinates. Default is True.
     compute_weights: bool

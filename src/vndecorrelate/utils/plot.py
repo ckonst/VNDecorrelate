@@ -21,8 +21,9 @@ def plot_correlogram(
     lag_seconds: float,
     time_seconds: int,
     title: str = 'Cross Correlogram',
+    figure_size: tuple = (15, 6),
 ) -> plt.Figure:
-    fig = plt.figure(figsize=(15, 6))
+    fig = plt.figure(figsize=figure_size)
     plt.imshow(
         np.abs(correlogram),
         extent=[-lag_seconds, lag_seconds, time_seconds, 0],
@@ -37,9 +38,11 @@ def plot_correlogram(
     return fig
 
 
-def plot_signal(input_signal: NDArray, title: str = 'Signal') -> plt.Figure:
+def plot_signal(
+    input_signal: NDArray, title: str = 'Signal', figure_size: tuple | None = None
+) -> plt.Figure:
     """Plot the time domain input signal."""
-    fig = plt.figure()
+    fig = plt.figure(figsize=figure_size)
     plt.plot(input_signal)
     plt.xlabel('Samples')
     plt.ylabel('Amplitude')
@@ -50,10 +53,12 @@ def plot_signal(input_signal: NDArray, title: str = 'Signal') -> plt.Figure:
 def plot_spectrogram(
     spectrogram: NDArray,
     title: str = 'Spectrogram',
+    figure_size: tuple = (15, 6),
 ) -> plt.Figure:
     """Plot the spectrogram of the input signal."""
-    fig = plt.figure(figsize=(15, 6))
+    fig = plt.figure(figsize=figure_size)
     plt.imshow(
+        # TODO: use db function in dsp.py
         10 * np.log10(spectrogram + 1e-10),
         aspect='auto',
         cmap='Blues',
@@ -105,6 +110,7 @@ def _draw_scope_frame(
         for reference_radius in [0.25, 0.5, 0.75, 1.0]:
             arc_x, arc_y = polar_to_cartesian(arc_sweep_angles, reference_radius)
             axes.plot(arc_x, arc_y, color=grid_color, linewidth=0.7, zorder=1)
+            # TODO: replace with implementation in dsp.py
             decibel_value = 20.0 * np.log10(reference_radius + 1e-9)
             axes.text(
                 0,
@@ -441,7 +447,9 @@ def plot_polar_sample(
     # Stats annotation
     # ------------------------------------------------------------------
     center_angle = np.average(sample_angles_deg, weights=sample_radii)
+    # TODO: replace with implementation in dsp.py
     rms_level = np.sqrt(np.mean(sample_radii**2))
+    # TODO: replace with implementation in dsp.py
     rms_decibels = 20.0 * np.log10(rms_level + 1e-12)
     width_degrees = np.std(sample_angles_deg)
 
@@ -489,7 +497,7 @@ def plot_lissajous(
     input_signal: NDArray,
     sample_rate_hz: int = 44100,
     title: str = 'Lissajous',
-    figsize: tuple = (7, 7),
+    figure_size: tuple = (7, 7),
     color_mode: str = 'density',  # "density" | "time" | "solid"
     line_color: str = '#00ff88',  # used when color_mode="solid"
     alpha: float = 0.6,
@@ -547,7 +555,7 @@ def plot_lissajous(
 
     # Build figure / axes
     if axes is None:
-        fig, axes = plt.subplots(figsize=figsize, facecolor='#0d0d0d')
+        fig, axes = plt.subplots(figsize=figure_size, facecolor='#0d0d0d')
     else:
         fig = axes.get_figure()
 
@@ -641,8 +649,8 @@ def plot_lissajous(
 
 
 def _build_pseudo_hull(
-    sample_angles_deg: np.ndarray,
-    sample_radii: np.ndarray,
+    sample_angles_deg: NDArray,
+    sample_radii: NDArray,
     num_bins: int = 360,
     percentile: float = 95.0,
     smoothing_sigma: float = 4.0,
@@ -703,50 +711,50 @@ def _build_pseudo_hull(
             bin_percentile_radii, sigma=smoothing_sigma, mode='wrap'
         )
 
-    if use_convex_hull and np.count_nonzero(bin_percentile_radii) >= 3:
-        # Convert binned envelope to Cartesian for convex hull computation.
-        # Use the intermediate (pre-rotation) angle space where bins are
-        # uniformly spaced from -90 to +90 degrees of standard math angle.
-        envelope_x = bin_percentile_radii * np.cos(np.radians(bin_center_angles))
-        envelope_y = bin_percentile_radii * np.sin(np.radians(bin_center_angles))
+    if not use_convex_hull or np.count_nonzero(bin_percentile_radii) < 3:
+        hull_angles_deg = np.append(bin_center_angles, bin_center_angles[0])
+        hull_radii = np.append(bin_percentile_radii, bin_percentile_radii[0])
+        return hull_angles_deg, hull_radii, bin_center_angles, bin_percentile_radii
 
-        # Include the origin so the hull is always grounded at the base.
-        hull_input_points = np.vstack(
-            [np.column_stack([envelope_x, envelope_y]), [0.0, 0.0]]
+    # Convert binned envelope to Cartesian for convex hull computation.
+    # Use the intermediate (pre-rotation) angle space where bins are
+    # uniformly spaced from -90 to +90 degrees of standard math angle.
+    envelope_x = bin_percentile_radii * np.cos(np.radians(bin_center_angles))
+    envelope_y = bin_percentile_radii * np.sin(np.radians(bin_center_angles))
+
+    # Include the origin so the hull is always grounded at the base.
+    hull_input_points = np.vstack(
+        [np.column_stack([envelope_x, envelope_y]), [0.0, 0.0]]
+    )
+
+    try:
+        convex_hull = ConvexHull(hull_input_points)
+        hull_vertices = hull_input_points[convex_hull.vertices]
+
+        # Drop the origin vertex -- it was only needed for geometric
+        # anchoring. Keeping it in the outline draws a line back through
+        # the center of the plot.
+        is_not_origin = ~(
+            (np.abs(hull_vertices[:, 0]) < 1e-9) & (np.abs(hull_vertices[:, 1]) < 1e-9)
         )
+        hull_vertices = hull_vertices[is_not_origin]
 
-        try:
-            convex_hull = ConvexHull(hull_input_points)
-            hull_vertices = hull_input_points[convex_hull.vertices]
+        # Sort by angle so the polygon outline draws correctly.
+        vertex_angles = np.arctan2(hull_vertices[:, 1], hull_vertices[:, 0])
+        sorted_order = np.argsort(vertex_angles)
+        hull_vertices = hull_vertices[sorted_order]
 
-            # Drop the origin vertex -- it was only needed for geometric
-            # anchoring. Keeping it in the outline draws a line back through
-            # the center of the plot.
-            is_not_origin = ~(
-                (np.abs(hull_vertices[:, 0]) < 1e-9)
-                & (np.abs(hull_vertices[:, 1]) < 1e-9)
-            )
-            hull_vertices = hull_vertices[is_not_origin]
+        hull_angles_deg = np.degrees(
+            np.arctan2(hull_vertices[:, 1], hull_vertices[:, 0])
+        )
+        hull_radii = np.hypot(hull_vertices[:, 0], hull_vertices[:, 1])
 
-            # Sort by angle so the polygon outline draws correctly.
-            vertex_angles = np.arctan2(hull_vertices[:, 1], hull_vertices[:, 0])
-            sorted_order = np.argsort(vertex_angles)
-            hull_vertices = hull_vertices[sorted_order]
+        # Close the loop
+        hull_angles_deg = np.append(hull_angles_deg, hull_angles_deg[0])
+        hull_radii = np.append(hull_radii, hull_radii[0])
 
-            hull_angles_deg = np.degrees(
-                np.arctan2(hull_vertices[:, 1], hull_vertices[:, 0])
-            )
-            hull_radii = np.hypot(hull_vertices[:, 0], hull_vertices[:, 1])
-
-            # Close the loop
-            hull_angles_deg = np.append(hull_angles_deg, hull_angles_deg[0])
-            hull_radii = np.append(hull_radii, hull_radii[0])
-
-        except Exception:
-            # Fall back to the smooth envelope if the hull computation fails.
-            hull_angles_deg = np.append(bin_center_angles, bin_center_angles[0])
-            hull_radii = np.append(bin_percentile_radii, bin_percentile_radii[0])
-    else:
+    except Exception:
+        # Fall back to the smooth envelope if the hull computation fails.
         hull_angles_deg = np.append(bin_center_angles, bin_center_angles[0])
         hull_radii = np.append(bin_percentile_radii, bin_percentile_radii[0])
 

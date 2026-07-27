@@ -8,6 +8,7 @@ from numpy.typing import NDArray
 
 from vndecorrelate.utils.dsp import (
     IDENTITY_ENVELOPE,
+    SEGMENTED_DECAY_ENVELOPE,
     LayoutMode,
     LR_to_MS,
     MS_to_LR,
@@ -292,7 +293,7 @@ class _VelvetNoiseSequence:
 
 @dataclass(kw_only=True, slots=True)
 class _ParallelVelvetNoise:
-    """Dataclass for storing Velvet Noise Sequences for each output channel."""
+    """Dataclass for storing equal-length Velvet Noise Sequences for each output channel."""
 
     output_channels: Sequence[_VelvetNoiseSequence] = field(default_factory=list)
     # Store the FIR length to determine if the velvet noise sequence needs to be regenerated in case it changes after initialization.
@@ -347,14 +348,14 @@ class VelvetNoise(Decorrelator):
             A sequence containing the channel indices of channels that will have a velvet noise filter applied.
         mode : LayoutMode
             If LR: decorrelate by filtering the specified ``filtered_channels``.
-            If MS: decorrelate by injecting the ``filtered_channels`` as the side channel of the final signal.
+            If MS: decorrelate by injecting the ``filtered_channels`` as the side channel of the output signal.
         seed : int
             The seed for the velvet noise generator.
     """
 
     duration_seconds: float = 0.03
     num_impulses: int = 30
-    segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2)
+    segment_envelope: Sequence[float] = SEGMENTED_DECAY_ENVELOPE
     log_distribution_strength: float = 1.0
     normalizer: Callable[[NDArray, NDArray], None] | None = rms_normalize
     filtered_channels: Sequence[int] = 0, 1
@@ -385,7 +386,7 @@ class VelvetNoise(Decorrelator):
                 f'Velvet Noise Filter of length {self.fir_length_samples} with {self.num_impulses} impulses is not sparse. ({density=:.2f})\n'
                 '\tnum_impulses must be less than 20% the FIR length in samples.'
             )
-        # If segment_envelope is empty, use a single segment with no decay.
+        # If segment_envelope is empty or None, use a single segment with no decay.
         if not self.segment_envelope:
             self.segment_envelope = IDENTITY_ENVELOPE
         self._velvet_noise = self._generate()
@@ -552,7 +553,7 @@ def generate_velvet_noise(
     num_impulses: int,
     num_outs: int = 2,
     sample_rate_hz: int = 44100,
-    segment_envelope: Sequence[float] = (0.85, 0.55, 0.35, 0.2),
+    segment_envelope: Sequence[float] = SEGMENTED_DECAY_ENVELOPE,
     log_distribution_strength: float = 1.0,
     seed: int | None = None,
 ) -> NDArray:
