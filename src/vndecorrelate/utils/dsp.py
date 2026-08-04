@@ -2,6 +2,8 @@ from enum import StrEnum
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.ndimage import gaussian_filter1d
+from scipy.spatial import ConvexHull
 
 EPSILON: float = 1e-10
 
@@ -394,7 +396,7 @@ def polar_coordinates(
     mode: LayoutMode
         The channel layout to use for calculating angle. Defaults to LayoutMode.MS (Mid-Side).
     semicircular: bool
-        TODO
+        Whether to fold the full (-180, 180] range onto [-90, 90]. Default is True.
     normalize: bool
         Whether to normalize the radii component of the polar coordinates. Default is True.
     compute_weights: bool
@@ -430,6 +432,7 @@ def polar_coordinates(
 def polar_to_cartesian(
     angles_degrees: NDArray, radii: NDArray
 ) -> tuple[NDArray, NDArray]:
+    """Given ``angles_degrees`` and ``radii``, return (xs, ys)"""
     thetas = np.radians(angles_degrees)
     return radii * np.sin(thetas), radii * np.cos(thetas)
 
@@ -468,3 +471,132 @@ def radians_to_degrees(radians: NDArray) -> NDArray:
     return np.clip(
         np.degrees(radians), -90.0, 90.0
     )  # Clip to ±90° (handles phase-inverted / out-of-phase samples gracefully)
+
+
+def amplitude_to_db(input_signal: NDArray) -> NDArray:
+    return 20 * np.log10(input_signal + EPSILON)
+
+
+def power_to_db(input_signal: NDArray) -> NDArray:
+    return 10 * np.log10(input_signal + EPSILON)
+
+
+def generate_convex_hull(input_signal: NDArray) -> NDArray:
+    """Given ``input_signal`` (cartesian coordinates) of shape (n, 2), return its convex hull."""
+    convex_hull = ConvexHull(input_signal)
+    hull_vertices = input_signal[convex_hull.vertices]
+
+    # Drop the origin vertex -- it was only needed for geometric
+    # anchoring. Keeping it in the outline draws a line back through
+    # the center of the plot.
+    is_not_origin = ~(
+        (np.abs(hull_vertices[:, 0]) < EPSILON)
+        & (np.abs(hull_vertices[:, 1]) < EPSILON)
+    )
+    hull_vertices = hull_vertices[is_not_origin]
+
+    # hull vertices are guarenteed
+    # Sort by angle so the polygon outline draws correctly.
+    vertex_angles = np.arctan2(hull_vertices[:, 1], hull_vertices[:, 0])
+    sorted_order = np.argsort(vertex_angles)
+    return hull_vertices[sorted_order]
+
+
+def generate_pseudo_hull(
+    sample_angles_deg: NDArray,
+    sample_radii: NDArray,
+    num_bins: int = 360,
+    percentile: float = 95.0,
+    smoothing_sigma: float = 4.0,
+    use_convex_hull: bool = True,
+):
+    """
+    Build a polar envelope (pseudo convex hull) from sample polar coordinates.
+
+    Steps:
+      1. Bin the 180-degree angular range into num_bins slices.
+      2. Take the given percentile of radii within each bin.
+      3. Apply Gaussian smoothing around the ring.
+      4. Optionally replace the smooth envelope with its geometric convex hull.
+
+    Parameters
+    ----------
+    sample_angles_deg : NDArray
+        Per-sample azimuth angles in degrees, range [-90, +90].
+    sample_radii : NDArray
+        Per-sample normalized radii, range [0, 1].
+    num_bins : int
+        Number of angular bins across the 180-degree range.
+    percentile : float
+        Radial percentile used as the envelope ceiling (0-100).
+        95 gives a near-peak envelope; 50 gives the median shape.
+    smoothing_sigma : float
+        Standard deviation (in bin units) of the Gaussian smoothing kernel.
+    use_convex_hull : bool
+        If True, compute the geometric convex hull of the percentile envelope
+        points and use that outline. If False, use the smoothed envelope directly.
+
+    Returns
+    -------
+    hull_angles_deg : NDArray
+        Angles of the hull vertices, closed (first == last).
+    hull_radii : NDArray
+        Radii of the hull vertices, closed (first == last).
+    bin_center_angles : NDArray
+        Center angle of every bin (useful for the inner RMS overlay).
+    bin_percentile_radii : NDArray
+        Percentile radius for every bin.
+    """
+    bin_edges = np.linspace(-90.0, 90.0, num_bins + 1)
+    bin_center_angles = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+
+    # generate a qth percentile envelope from each bin.
+    bin_percentile_radii = np.zeros(num_bins)
+    for bin_index in range(num_bins):
+        mask = (sample_angles_deg >= bin_edges[bin_index]) & (
+            sample_angles_deg < bin_edges[bin_index + 1]
+        )
+        if mask.any():
+            bin_percentile_radii[bin_index] = np.percentile(
+                sample_radii[mask], percentile
+            )
+
+    if smoothing_sigma > 0:
+        bin_percentile_radii = gaussian_filter1d(
+            bin_percentile_radii, sigma=smoothing_sigma, mode='wrap'
+        )
+
+    if not use_convex_hull or np.count_nonzero(bin_percentile_radii) < 3:
+        hull_angles_deg = np.append(bin_center_angles, bin_center_angles[0])
+        hull_radii = np.append(bin_percentile_radii, bin_percentile_radii[0])
+        return hull_angles_deg, hull_radii, bin_center_angles, bin_percentile_radii
+
+    # Convert binned envelope to Cartesian for convex hull computation.
+    # Use the intermediate (pre-rotation) angle space where bins are
+    # uniformly spaced from -90 to +90 degrees of standard math angle.
+    envelope_x = bin_percentile_radii * np.cos(np.radians(bin_center_angles))
+    envelope_y = bin_percentile_radii * np.sin(np.radians(bin_center_angles))
+
+    # Include the origin so the hull is always grounded at the base.
+    hull_input_points = np.vstack(
+        [np.column_stack([envelope_x, envelope_y]), [0.0, 0.0]]
+    )
+
+    try:
+        hull_vertices = generate_convex_hull(hull_input_points)
+
+        hull_angles_deg = np.degrees(
+            np.arctan2(hull_vertices[:, 1], hull_vertices[:, 0])
+        )
+        hull_radii = np.hypot(hull_vertices[:, 0], hull_vertices[:, 1])
+
+        # Close the loop
+        hull_angles_deg = np.append(hull_angles_deg, hull_angles_deg[0])
+        hull_radii = np.append(hull_radii, hull_radii[0])
+
+    except Exception:
+        # Fall back to the smooth envelope if the hull computation fails.
+        hull_angles_deg = np.append(bin_center_angles, bin_center_angles[0])
+        hull_radii = np.append(bin_percentile_radii, bin_percentile_radii[0])
+
+    return hull_angles_deg, hull_radii, bin_center_angles, bin_percentile_radii

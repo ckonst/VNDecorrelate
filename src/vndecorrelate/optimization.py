@@ -181,7 +181,6 @@ def optimize_haas_delay(
         float: The optimized delay time :math:``τ ∈ [0.0 , max_delay_seconds]``, i.e. ``delay_time_seconds``
     """
     # tau: length of delay for channel
-    # TODO: compute grid_size based on nyquist criterion applied to tau-domain landscape
     taus = np.linspace(0.0, max_delay_seconds, grid_size)
 
     haas_effect_decorrelators = [
@@ -254,7 +253,6 @@ def optimize_velvet_noise(
     Returns:
         float: The optimized start-of-filter impulse concentration :math:``κ ∈ [0.0, 1.0]``, i.e. ``log_distribution_strength``
     """
-    # TODO: compute grid_size based on nyquist criterion applied to kappa-domain landscape
     kappas = np.linspace(0.0, 1.0, grid_size)
 
     velvet_noise_decorrelators = [

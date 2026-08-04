@@ -354,7 +354,11 @@ def test_plot_polar_level(guitar_signal):
     output_signal = vnd(input_signal)
 
     plot_polar_level(
-        input_signal=output_signal, sample_rate_hz=fs, title='Guitar Polar Level'
+        input_signal=output_signal,
+        sample_rate_hz=fs,
+        title='Guitar Polar Level',
+        use_convex_hull=True,
+        smoothing_sigma=6,
     )
     plt.savefig('./tests/plots/Guitar Polar Level.png')
     plt.close()
