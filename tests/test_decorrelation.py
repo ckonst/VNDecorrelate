@@ -30,6 +30,7 @@ def test__heterogeneous_signal_chain():
         .velvet_noise(
             duration_seconds=0.03,
             num_impulses=30,
+            log_distribution_strength=1.0,
             width=0.5,
         )
         .haas_effect(
@@ -55,12 +56,12 @@ def test__heterogeneous_signal_chain():
 
 
 def test__velvet_noise_generation():
-    vnd = VelvetNoise(sample_rate_hz=44100, seed=1)
+    vnd = VelvetNoise(sample_rate_hz=44100, log_distribution_strength=1.0, seed=1)
     sequences = vnd._generate()
 
     assert sequences == vnd._velvet_noise
 
-    vnd = VelvetNoise(sample_rate_hz=44100, seed=2)
+    vnd = VelvetNoise(sample_rate_hz=44100, log_distribution_strength=1.0, seed=2)
 
     assert sequences != vnd._velvet_noise
 
@@ -97,7 +98,11 @@ def test__velvet_noise_generation_equality():
 def test__velvet_noise_properties():
     fs = 44100
     vnd = VelvetNoise(
-        duration_seconds=0.03, num_impulses=30, sample_rate_hz=fs, num_outs=2
+        duration_seconds=0.03,
+        num_impulses=30,
+        sample_rate_hz=fs,
+        num_outs=2,
+        log_distribution_strength=1.0,
     )
 
     assert vnd.density == 1000
@@ -106,6 +111,7 @@ def test__velvet_noise_properties():
         sample_rate_hz=44100,
         duration_seconds=0.055,
         num_impulses=45,
+        log_distribution_strength=1.0,
     )
 
     assert 818.19 > vnd.density > 818.18
@@ -113,11 +119,16 @@ def test__velvet_noise_properties():
     assert len(vnd.FIR[:, 0][vnd.FIR[:, 0] != 0.0]) == 45
 
     with pytest.raises(ValueError):
-        vnd = VelvetNoise(duration_seconds=0.03, num_impulses=700, sample_rate_hz=fs)
+        vnd = VelvetNoise(
+            duration_seconds=0.03,
+            num_impulses=700,
+            sample_rate_hz=fs,
+            log_distribution_strength=1.0,
+        )
 
 
 def test__velvet_noise_decorrelation():
-    vnd = VelvetNoise(sample_rate_hz=44100)
+    vnd = VelvetNoise(sample_rate_hz=44100, log_distribution_strength=1.0)
     input_signal = np.zeros(1000)
     output_signal = vnd(input_signal)
     assert output_signal.shape[0] == 1000
@@ -125,7 +136,12 @@ def test__velvet_noise_decorrelation():
 
 
 def test__velvet_noise_decorrelation_15():
-    vnd = VelvetNoise(num_impulses=15, duration_seconds=0.5, sample_rate_hz=44100)
+    vnd = VelvetNoise(
+        num_impulses=15,
+        duration_seconds=0.5,
+        sample_rate_hz=44100,
+        log_distribution_strength=1.0,
+    )
     input_signal = np.zeros(1000)
     output_signal = vnd(input_signal)
 
@@ -139,6 +155,7 @@ def test__velvet_noise_decorrelation_segment_envelope():
         duration_seconds=0.5,
         sample_rate_hz=44100,
         segment_envelope=(1.0, 0.5, 0.25),
+        log_distribution_strength=1.0,
     )
     input_signal = np.zeros(1000)
     output_signal = vnd(input_signal)
@@ -160,7 +177,7 @@ def test__velvet_noise_decorrelation_segment_envelope():
 
 
 def test__velvet_noise_generated_once():
-    vnd = VelvetNoise(sample_rate_hz=44100, seed=1)
+    vnd = VelvetNoise(sample_rate_hz=44100, log_distribution_strength=1.0, seed=1)
     input_signal = np.zeros(1000)
     vns_1 = vnd._velvet_noise
     _ = vnd(input_signal)

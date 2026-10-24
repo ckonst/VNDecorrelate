@@ -1,7 +1,4 @@
-"""Stateful and stateless audio decorrelators.
-
-As of right now only supports stereo decorrelation (i.e. no quad-channel, 5.1, 7.1, etc. support)
-"""
+"""Stateful and stateless audio decorrelators."""
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -26,6 +23,9 @@ from vndecorrelate.utils.dsp import (
     rms_normalize,
     to_float32,
 )
+
+# As of right now only supports stereo decorrelation (i.e. no quad-channel, 5.1, 7.1, etc. support)
+type FilterableChannels = tuple[0] | tuple[1] | tuple[0 | 1]
 
 # ----------------------------------------------------------------------------
 #
@@ -671,10 +671,11 @@ class VelvetNoise(Decorrelator):
         segment_envelope : Sequence[float]
             The sequence of coefficients for segmented decay, one for each segment.
         log_distribution_strength : float
-            How much to distribute impulses logarithmically [0.0, 1.0].
+            How much to distribute impulses logarithmically in ``[0.0, 1.0]``.
+            Defaults to ``0.5``.
         normalizer : Callable[[NDArray, NDArray], None] | None
             The function used to normalize the output signal, if any. Defaults to RMS normalization.
-        filtered_channels : Sequence[int]
+        filtered_channels : FilterableChannels
             A sequence containing the channel indices of channels that will have a velvet noise filter applied.
         mode : LayoutMode
             If LR: decorrelate by filtering the specified ``filtered_channels``.
@@ -686,9 +687,9 @@ class VelvetNoise(Decorrelator):
     duration_seconds: float = 0.03
     num_impulses: int = 30
     segment_envelope: Sequence[float] = SEGMENTED_DECAY_ENVELOPE
-    log_distribution_strength: float = 1.0
+    log_distribution_strength: float = 0.5
     normalizer: Callable[[NDArray, NDArray], None] | None = rms_normalize
-    filtered_channels: Sequence[int] = 0, 1
+    filtered_channels: FilterableChannels = 0, 1
     mode: LayoutMode = LayoutMode.MS
     seed: int | None = None
 

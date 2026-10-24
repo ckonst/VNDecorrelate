@@ -44,6 +44,7 @@ velvet_noise = VelvetNoise(
     sample_rate_hz=fs,
     duration_seconds=0.03,
     num_impulses=30,
+    log_distribution_strength=1.0,
 )
 output_signal = velvet_noise.decorrelate(input_signal)
 ```

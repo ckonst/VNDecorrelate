@@ -265,13 +265,13 @@ def generate_log_distribution(strength: float, size: int) -> NDArray:
     strength : float
         Controls how strongly the values increase towards the end of the
         array. ``0.0`` produces a uniform distribution, ``1.0`` produces
-        a strong (logarithmic) increase.
+        a strong (exponential) increase.
     size : int
         Number of intervals; the returned array has length ``size + 1``.
 
     Returns
     -------
-    ndarray
+    NDArray
         Array of length ``size + 1`` containing exponentially increasing
         values parameterized by ``strength``.
 
