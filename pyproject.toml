@@ -41,3 +41,7 @@ convention = "numpy"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/vndecorrelate"]
+exclude = ["src/vndecorrelate/utils/render_latex_svgs.py"]
+
+[tool.hatch.build.targets.sdist]
+exclude = ["src/vndecorrelate/utils/render_latex_svgs.py"]
