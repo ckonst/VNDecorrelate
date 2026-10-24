@@ -286,8 +286,8 @@ def generate_log_distribution(strength: float, size: int) -> NDArray:
         /
         # Applying the strength term to the denominator helps with the uniform density case
         # where ``strength = 0.0`` by reducing the normalization constant to 1.0
-        # to generate a sequence that increases linearly, while still parameterized by strength.
-        (100.0 * ((1.0 + (strength * 99.0)) / 100.0))
+        # to generate a flat, all 1-valued array, while still parameterized by strength.
+        (1.0 + (strength * 99.0))
     )
 
 
