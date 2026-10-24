@@ -237,7 +237,7 @@ def _draw_scope_frame(
 
 
 def plot_polar_sample(
-    input_signal: np.ndarray,
+    input_signal: NDArray,
     sample_rate_hz: int = 44100,
     title: str = 'Polar Heatmap',
     figure_size: tuple[float, float] = (8, 5.5),

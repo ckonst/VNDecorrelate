@@ -301,14 +301,14 @@ def apply_log_distribution(
 
     Parameters
     ----------
-    randoms : ndarray
+    randoms : NDArray
         Uniform random values in ``[0, 1]``; shape must match
         ``log_distribution`` and ``log_impulse_intervals``.
-    log_distribution : ndarray
+    log_distribution : NDArray
         Precomputed distribution weights from
         :func:``generate_log_distribution`` describing how density varies
         across the filter.
-    log_impulse_intervals : ndarray
+    log_impulse_intervals : NDArray
         Cumulative impulse interval positions corresponding to the
         ``log_distribution`` values.
     jitter : float
@@ -318,7 +318,7 @@ def apply_log_distribution(
 
     Returns
     -------
-    ndarray of int32
+    NDArray[np.int32]
         Rounded sample indices for each randomized impulse position,
         suitable for indexing the FIR.
 
@@ -349,10 +349,10 @@ def uniform_density(
 
     Parameters
     ----------
-    randoms : ndarray
+    randoms : NDArray
         Uniform random values in the interval ``[0, 1]``, with the same shape
         as ``impulse_indexes``.
-    impulse_indexes : ndarray
+    impulse_indexes : NDArray
         Precomputed impulse indices (for example ``np.arange(n_impulses)``),
         where the first impulse is at index ``0``.
     impulse_interval : float
@@ -361,7 +361,7 @@ def uniform_density(
 
     Returns
     -------
-    positions : ndarray of int32
+    positions : NDArray[np.int32]
         Rounded sample indices for each impulse, suitable for indexing the
         FIR. The array has dtype ``np.int32``.
 
