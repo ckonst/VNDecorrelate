@@ -1,9 +1,13 @@
+"""Matplotlib visualizations for stereo-audio analysis."""
+
 from typing import Literal
 
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.axes import Axes
 from matplotlib.collections import PatchCollection
+from matplotlib.figure import Figure
 from matplotlib.patches import Wedge
 from numpy.typing import NDArray
 from scipy.ndimage import gaussian_filter
@@ -23,8 +27,29 @@ def plot_correlogram(
     lag_seconds: float,
     time_seconds: int,
     title: str = 'Cross Correlogram',
-    figure_size: tuple = (15, 6),
-) -> plt.Figure:
+    figure_size: tuple[float, float] = (15, 6),
+) -> Figure:
+    """Plot the magnitude of a cross-correlogram.
+
+    Parameters
+    ----------
+    correlogram : NDArray
+        Cross-correlation values with time windows on the first axis and
+        lags on the second.
+    lag_seconds : float
+        Largest absolute lag represented by the correlogram, in seconds.
+    time_seconds : int
+        Duration represented by the correlogram, in seconds.
+    title : str
+        Figure title.
+    figure_size : tuple[float, float]
+        Figure width and height in inches.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The created figure.
+    """
     fig = plt.figure(figsize=figure_size)
     plt.imshow(
         np.abs(correlogram),
@@ -41,9 +66,27 @@ def plot_correlogram(
 
 
 def plot_signal(
-    input_signal: NDArray, title: str = 'Signal', figure_size: tuple | None = None
-) -> plt.Figure:
-    """Plot the time domain input signal."""
+    input_signal: NDArray,
+    title: str = 'Signal',
+    figure_size: tuple[float, float] | None = None,
+) -> Figure:
+    """Plot an audio signal in the time domain.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Mono or multichannel samples, with samples on the first axis.
+    title : str
+        Figure title.
+    figure_size : tuple[float, float] or None
+        Figure width and height in inches, or ``None`` for Matplotlib's
+        default size.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The created figure.
+    """
     fig = plt.figure(figsize=figure_size)
     plt.plot(input_signal)
     plt.xlabel('Samples')
@@ -55,9 +98,24 @@ def plot_signal(
 def plot_spectrogram(
     spectrogram: NDArray,
     title: str = 'Spectrogram',
-    figure_size: tuple = (15, 6),
-) -> plt.Figure:
-    """Plot the spectrogram of the input signal."""
+    figure_size: tuple[float, float] = (15, 6),
+) -> Figure:
+    """Plot a power spectrogram in decibels.
+
+    Parameters
+    ----------
+    spectrogram : NDArray
+        Non-negative power spectrogram with frequency bins on the first axis.
+    title : str
+        Figure title.
+    figure_size : tuple[float, float]
+        Figure width and height in inches.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The created figure.
+    """
     fig = plt.figure(figsize=figure_size)
     plt.imshow(
         power_to_db(spectrogram),
@@ -73,13 +131,13 @@ def plot_spectrogram(
 
 
 def _draw_scope_frame(
-    axes,
+    axes: Axes,
     show_grid: bool = True,
     grid_color: str = '#1a2a2a',
     baseline_color: str = '#1a3333',
     label_color: str = '#4a8a8a',
     decibel_label_color: str = '#2a4a4a',
-):
+) -> None:
     """
     Draw the standard 180-degree vectorscope frame onto *axes*.
 
@@ -182,7 +240,7 @@ def plot_polar_sample(
     input_signal: np.ndarray,
     sample_rate_hz: int = 44100,
     title: str = 'Polar Heatmap',
-    figure_size: tuple = (8, 5.5),
+    figure_size: tuple[float, float] = (8, 5.5),
     # Render mode
     mode: Literal[
         'heatmap', 'scatter', 'both'
@@ -200,8 +258,8 @@ def plot_polar_sample(
     colormap_name: str = 'cyan_scope',  # "cyan_scope" or any matplotlib colormap name
     # Frame
     show_grid: bool = True,
-    axes: plt.Axes = None,
-) -> plt.Figure:
+    axes: Axes | None = None,
+) -> Figure:
     """
     Plot a 180-degree polar density heatmap and/or scatter for a stereo signal.
 
@@ -228,8 +286,8 @@ def plot_polar_sample(
 
     Parameters
     ----------
-    input_signal : np.ndarray
-        Stereo audio, shape (num_samples, 2) or (2, num_samples),
+    input_signal : NDArray
+        Stereo audio with shape ``(num_samples, 2)``,
         with values in [-1, 1].
     sample_rate_hz : int
         Sample rate in Hz. Used for display annotations only.
@@ -261,8 +319,8 @@ def plot_polar_sample(
         style) or any Matplotlib colormap name.
     show_grid : bool
         Draw angular spokes, radial arcs, and decibel labels.
-    axes : matplotlib.axes.Axes, optional
-        Existing axes to draw into. If None a new figure is created.
+    axes : matplotlib.axes.Axes or None
+        Existing axes to draw into. If ``None``, a new figure is created.
 
     Returns
     -------
@@ -495,15 +553,15 @@ def plot_lissajous(
     input_signal: NDArray,
     sample_rate_hz: int = 44100,
     title: str = 'Lissajous',
-    figure_size: tuple = (7, 7),
+    figure_size: tuple[float, float] = (7, 7),
     color_mode: str = 'density',  # "density" | "time" | "solid"
     line_color: str = '#00ff88',  # used when color_mode="solid"
     alpha: float = 0.6,
     dot_size: float = 0.3,
     max_points: int = 100_000,
     show_axes: bool = True,
-    axes: plt.Axes = None,
-) -> plt.Figure:
+    axes: Axes | None = None,
+) -> Figure:
     """
     Create a Lissajous (vectorscope) plot from a stereo audio numpy array.
 
@@ -516,7 +574,7 @@ def plot_lissajous(
         Sample rate in Hz (used for display purposes only).
     title : str
         Plot title.
-    figsize : tuple
+    figure_size : tuple[float, float]
         Figure size in inches.
     color_mode : str
         "density"  – 2-D histogram heat map (shows where signal spends most time)
@@ -532,12 +590,12 @@ def plot_lissajous(
         Subsample to this many points to keep rendering fast.
     show_axes : bool
         Whether to draw the ±1 reference lines and axis labels.
-    ax : plt.Axes, optional
-        Existing axes to draw into. If None, a new figure is created.
+    axes : matplotlib.axes.Axes or None
+        Existing axes to draw into. If ``None``, a new figure is created.
 
     Returns
     -------
-    fig : plt.Figure
+    fig : matplotlib.figure.Figure
     """
     check_stereo(input_signal)
 
@@ -650,7 +708,7 @@ def plot_polar_level(
     input_signal: NDArray,
     sample_rate_hz: int = 44100,
     title: str = 'Polar Vectorscope',
-    figure_size: tuple = (8, 5.5),
+    figure_size: tuple[float, float] = (8, 5.5),
     # Envelope options
     num_bins: int = 360,
     percentile: float = 95.0,
@@ -662,8 +720,8 @@ def plot_polar_level(
     overlay_color: str = '#00e5ff',
     show_rms_overlay: bool = True,
     show_grid: bool = True,
-    axes: plt.Axes = None,
-) -> plt.Figure:
+    axes: Axes | None = None,
+) -> Figure:
     """
     Plot a 180-degree polar level vectorscope for a stereo audio signal.
 
@@ -673,8 +731,8 @@ def plot_polar_level(
 
     Parameters
     ----------
-    input_signal : np.ndarray
-        Stereo audio, shape (num_samples, 2) or (2, num_samples),
+    input_signal : NDArray
+        Stereo audio with shape ``(num_samples, 2)``,
         with values in [-1, 1].
     sample_rate_hz : int
         Sample rate in Hz. Used for display annotations only.
@@ -703,8 +761,8 @@ def plot_polar_level(
         Draw a dashed inner shape at the 50th-percentile (median) envelope.
     show_grid : bool
         Draw angular spokes, radial arcs, and decibel labels.
-    axes : matplotlib.axes.Axes, optional
-        Existing axes to draw into. If None a new figure is created.
+    axes : matplotlib.axes.Axes or None
+        Existing axes to draw into. If ``None``, a new figure is created.
 
     Returns
     -------

@@ -1,3 +1,8 @@
+"""Stateful and stateless audio decorrelators.
+
+As of right now only supports stereo decorrelation (i.e. no quad-channel, 5.1, 7.1, etc. support)
+"""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from functools import partial
@@ -31,32 +36,100 @@ from vndecorrelate.utils.dsp import (
 
 @dataclass
 class SignalProcessor(Protocol):
+    """Protocol for a callable processor that transforms an audio signal.
+
+    Parameters
+    ----------
+    sample_rate_hz : int
+        Signal sample rate in hertz.
+    num_outs : int
+        Number of output channels.
+    """
+
     sample_rate_hz: int
     num_outs: int
 
     def __call__(self, input_signal: NDArray) -> NDArray:
+        """Process an audio signal.
+
+        Parameters
+        ----------
+        input_signal : NDArray
+            Input audio samples.
+
+        Returns
+        -------
+        NDArray
+            Processed audio samples.
+        """
         raise NotImplementedError
 
 
 @dataclass
 class Decorrelator(ABC, SignalProcessor):
-    """An abstract base class for a ``Decorrelator``."""
+    """Abstract base class for audio decorrelators.
+
+    Parameters
+    ----------
+    num_outs : int
+        Number of output channels.
+    width : float or None
+        Optional mid-side width applied after decorrelation.
+    """
 
     num_outs: int = 2
     width: float | None = None
 
     @abstractmethod
     def decorrelate(self, input_signal: NDArray) -> NDArray:
-        """Main decorrelation function that must be implemented in subclasses."""
+        """Decorrelate an audio signal.
+
+        Parameters
+        ----------
+        input_signal : NDArray
+            Input audio samples.
+
+        Returns
+        -------
+        NDArray
+            Decorrelated audio samples.
+        """
         pass
 
     def __call__(self, input_signal: NDArray) -> NDArray:
-        """Alternative way of calling decorrelate."""
+        """Decorrelate an audio signal through the callable interface.
+
+        Parameters
+        ----------
+        input_signal : NDArray
+            Input audio samples.
+
+        Returns
+        -------
+        NDArray
+            Decorrelated audio samples.
+        """
         return self.decorrelate(input_signal)
 
 
 class StatelessDecorrelator(Protocol):
-    def __call__(self, input_signal: NDArray, **kwargs) -> NDArray:
+    """Protocol for a stateless callable audio processor."""
+
+    def __call__(self, input_signal: NDArray, **kwargs: object) -> NDArray:
+        """Process an audio signal without persistent state.
+
+        Parameters
+        ----------
+        input_signal : NDArray
+            Input audio samples.
+        **kwargs : Any
+            Processor-specific keyword arguments.
+
+        Returns
+        -------
+        NDArray
+            Processed audio samples.
+        """
         raise NotImplementedError
 
 
@@ -71,7 +144,15 @@ type _LazyDecorrelator = Callable[[], Decorrelator] | Decorrelator
 
 @dataclass(kw_only=True, slots=True)
 class SignalChain(SignalProcessor):
-    """A class for building a signal chain of cascading decorrelators."""
+    """Build a lazy or eager sequence of cascading decorrelators.
+
+    Parameters
+    ----------
+    num_outs : int
+        Default number of output channels for added decorrelators.
+    lazy : bool
+        If ``True``, create added decorrelators on the first processing call.
+    """
 
     num_outs: int = 2
     lazy: bool = True  # If True, wait until the first __call__ to initialize the decorrelators, unless _hot is True
@@ -80,6 +161,12 @@ class SignalChain(SignalProcessor):
     _decorrelators: list[_LazyDecorrelator] | None = None
 
     def __post_init__(self) -> None:
+        """Initialize internal decorrelator storage.
+
+        Returns
+        -------
+        None
+        """
         if self._decorrelators is not None:
             raise TypeError(
                 'Cannot supply decorrelators directly, use ``SignalChain.velvet_noise``,'
@@ -90,19 +177,73 @@ class SignalChain(SignalProcessor):
         if not self.lazy:
             self._hot = True
 
-    def haas_effect(self, **kwargs) -> Self:
+    def haas_effect(self, **kwargs: object) -> Self:
+        """Append a :class:`HaasEffect` to the chain.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Keyword arguments accepted by :class:`HaasEffect`.
+
+        Returns
+        -------
+        Self
+            This chain, enabling method chaining.
+        """
         self._add_decorrelator(HaasEffect, **kwargs)
         return self
 
-    def velvet_noise(self, **kwargs) -> Self:
+    def velvet_noise(self, **kwargs: object) -> Self:
+        """Append a :class:`VelvetNoise` decorrelator to the chain.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Keyword arguments accepted by :class:`VelvetNoise`.
+
+        Returns
+        -------
+        Self
+            This chain, enabling method chaining.
+        """
         self._add_decorrelator(VelvetNoise, **kwargs)
         return self
 
-    def white_noise(self, **kwargs) -> Self:
+    def white_noise(self, **kwargs: object) -> Self:
+        """Append a :class:`WhiteNoise` decorrelator to the chain.
+
+        Parameters
+        ----------
+        **kwargs : Any
+            Keyword arguments accepted by :class:`WhiteNoise`.
+
+        Returns
+        -------
+        Self
+            This chain, enabling method chaining.
+        """
         self._add_decorrelator(WhiteNoise, **kwargs)
         return self
 
-    def stateless(self, function: StatelessDecorrelator, *args, **kwargs):
+    def stateless(
+        self, function: StatelessDecorrelator, *args: object, **kwargs: object
+    ) -> Self:
+        """Append a stateless processor to the chain.
+
+        Parameters
+        ----------
+        function : StatelessDecorrelator
+            Callable processor to append.
+        *args : Any
+            Positional arguments bound to ``function``.
+        **kwargs : Any
+            Keyword arguments bound to ``function``.
+
+        Returns
+        -------
+        Self
+            This chain, enabling method chaining.
+        """
         self._decorrelators.append(
             partial(function, *args, **kwargs)
             if self._hot
@@ -110,7 +251,20 @@ class SignalChain(SignalProcessor):
         )
         return self
 
-    def _add_decorrelator(self, cls: type[Decorrelator], **kwargs) -> None:
+    def _add_decorrelator(self, cls: type[Decorrelator], **kwargs: object) -> None:
+        """Create or defer creation of a configured decorrelator.
+
+        Parameters
+        ----------
+        cls : type[Decorrelator]
+            Decorrelator implementation to add.
+        **kwargs : Any
+            Constructor keyword arguments for ``cls``.
+
+        Returns
+        -------
+        None
+        """
         kwargs = self._validate(cls, **kwargs)
         self._decorrelators.append(
             cls(
@@ -127,8 +281,28 @@ class SignalChain(SignalProcessor):
         )
 
     def _validate(
-        self, cls, *, sample_rate_hz: int | None = None, **kwargs
+        self,
+        cls: type[Decorrelator],
+        *,
+        sample_rate_hz: int | None = None,
+        **kwargs: object,
     ) -> dict[str, Any]:
+        """Validate keyword arguments shared with the enclosing chain.
+
+        Parameters
+        ----------
+        cls : type[Decorrelator]
+            Decorrelator class being configured.
+        sample_rate_hz : int or None
+            Explicit sample rate, if one was supplied.
+        **kwargs : Any
+            Remaining constructor keyword arguments.
+
+        Returns
+        -------
+        dict[str, Any]
+            Constructor keyword arguments excluding ``sample_rate_hz``.
+        """
         if sample_rate_hz is not None and sample_rate_hz != self.sample_rate_hz:
             raise TypeError(
                 f'{sample_rate_hz=} was supplied to {cls} but differs from the sample rate of the enclosing ``SignalChain`` ({self.sample_rate_hz})'
@@ -136,7 +310,19 @@ class SignalChain(SignalProcessor):
         return kwargs
 
     def __call__(self, input_signal: NDArray) -> NDArray:
-        """Decorrelate ``input_signal`` with all decorrelators in this ``SignalChain``."""
+        """Process a signal through every decorrelator in order.
+
+        Parameters
+        ----------
+        input_signal : NDArray
+            Input audio samples.
+
+        Returns
+        -------
+        NDArray
+            Output from the final processor, or the input when the chain is
+            empty.
+        """
         self._init_decorrelators()
         cascaded_sig = input_signal
         for decorrelator in self._decorrelators:
@@ -145,6 +331,12 @@ class SignalChain(SignalProcessor):
         return cascaded_sig
 
     def _init_decorrelators(self) -> None:
+        """Instantiate deferred decorrelators exactly once.
+
+        Returns
+        -------
+        None
+        """
         if self._hot:
             return
 
@@ -171,7 +363,7 @@ class HaasEffect(Decorrelator):
     Left-Right and Mid-Side delay values can be chosen to reduce phase incoherence.
     In general, keeping these values under 20ms helps reduce audible doubling artifacts, which are more noticible in mono.
 
-    Attributes
+    Parameters
     ----------
         delayed_channel : int
             Which channel gets delayed. For stereo audio:
@@ -191,7 +383,19 @@ class HaasEffect(Decorrelator):
     mode: LayoutMode = LayoutMode.LR
 
     def decorrelate(self, input_signal: NDArray) -> NDArray:
-        """Perform a Haas Effect decorrelation on ``input_signal``."""
+        """Apply Haas-effect decorrelation to an audio signal.
+
+        Parameters
+        ----------
+        input_signal : NDArray
+            Mono signal with shape ``(num_samples,)`` or stereo signal with
+            shape ``(num_samples, 2)``.
+
+        Returns
+        -------
+        NDArray
+            Delayed stereo signal, including the delay tail.
+        """
         input_signal = to_float32(input_signal)
         output_signal = self.haas_delay(input_signal)
 
@@ -201,7 +405,19 @@ class HaasEffect(Decorrelator):
         return output_signal
 
     def haas_delay(self, input_signal: NDArray) -> NDArray:
-        """Return a stereo signal where the specified channel is delayed by ``delay_time_seconds``."""
+        """Delay the configured channel of a mono or stereo signal.
+
+        Parameters
+        ----------
+        input_signal : NDArray
+            Mono signal with shape ``(num_samples,)`` or stereo signal with
+            shape ``(num_samples, 2)``.
+
+        Returns
+        -------
+        NDArray
+            Stereo signal with ``delay_time_seconds`` of trailing silence.
+        """
         delay_len_samples = round(self.delay_time_seconds * self.sample_rate_hz)
         input_length = len(input_signal)
         output_signal = np.zeros((input_length + delay_len_samples, 2))
@@ -246,7 +462,13 @@ class _VelvetNoiseSegment:
     positive_impulse_indexes: Sequence[int] = field(default_factory=list)
 
     def __iter__(self) -> Iterator[tuple[Sequence[int], str]]:
-        """Return an iterator containing a pair of the positive/negative impulse indexes, and the method name to use for the optimized convolution."""
+        """Iterate over negative and positive impulse-index groups.
+
+        Returns
+        -------
+        Iterator[tuple[Sequence[int], str]]
+            Index sequences paired with their in-place addition method name.
+        """
         return iter(
             (
                 (self.negative_impulse_indexes, '__isub__'),
@@ -255,6 +477,18 @@ class _VelvetNoiseSegment:
         )
 
     def __getitem__(self, key: int) -> Sequence[int]:
+        """Get a signed impulse-index sequence by position.
+
+        Parameters
+        ----------
+        key : int
+            ``0`` for negative impulses or ``1`` for positive impulses.
+
+        Returns
+        -------
+        Sequence[int]
+            Requested impulse indexes.
+        """
         if key == 0:
             return self.negative_impulse_indexes
         if key == 1:
@@ -262,6 +496,19 @@ class _VelvetNoiseSegment:
         raise ValueError('Invalid key')
 
     def __setitem__(self, key: int, value: Sequence[int]) -> None:
+        """Replace a signed impulse-index sequence by position.
+
+        Parameters
+        ----------
+        key : int
+            ``0`` for negative impulses or ``1`` for positive impulses.
+        value : Sequence[int]
+            Replacement impulse indexes.
+
+        Returns
+        -------
+        None
+        """
         if key == 0:
             self.negative_impulse_indexes = value
             return
@@ -279,15 +526,59 @@ class _VelvetNoiseSequence:
 
     @classmethod
     def create(cls, *, num_segments: int) -> Self:
+        """Create an empty sequence with a fixed number of segments.
+
+        Parameters
+        ----------
+        num_segments : int
+            Number of empty segments to allocate.
+
+        Returns
+        -------
+        Self
+            Empty velvet-noise sequence.
+        """
         return cls(segments=[_VelvetNoiseSegment() for _ in range(num_segments)])
 
     def __iter__(self) -> Iterator[_VelvetNoiseSegment]:
+        """Iterate over velvet-noise segments.
+
+        Returns
+        -------
+        Iterator[_VelvetNoiseSegment]
+            Sequence segments in order.
+        """
         return iter(self.segments)
 
     def __getitem__(self, key: int) -> _VelvetNoiseSegment:
+        """Return a segment by index.
+
+        Parameters
+        ----------
+        key : int
+            Segment index.
+
+        Returns
+        -------
+        _VelvetNoiseSegment
+            Requested segment.
+        """
         return self.segments[key]
 
-    def __setitem__(self, key: int, value: Sequence[_VelvetNoiseSegment]) -> None:
+    def __setitem__(self, key: int, value: _VelvetNoiseSegment) -> None:
+        """Replace a segment by index.
+
+        Parameters
+        ----------
+        key : int
+            Segment index.
+        value : _VelvetNoiseSegment
+            Replacement segment.
+
+        Returns
+        -------
+        None
+        """
         self.segments[key] = value
 
 
@@ -304,7 +595,14 @@ class _ParallelVelvetNoise:
         return len(self.output_channels)
 
     @property
-    def num_impluses(self) -> int:
+    def num_impulses(self) -> int:
+        """Return the number of impulses in one output-channel sequence.
+
+        Returns
+        -------
+        int
+            Number of positive and negative impulses combined.
+        """
         return sum(
             len(segment.negative_impulse_indexes)
             + len(segment.positive_impulse_indexes)
@@ -315,12 +613,44 @@ class _ParallelVelvetNoise:
         )
 
     def __iter__(self) -> Iterator[_VelvetNoiseSequence]:
+        """Iterate over per-channel velvet-noise sequences.
+
+        Returns
+        -------
+        Iterator[_VelvetNoiseSequence]
+            Output-channel sequences in order.
+        """
         return iter(self.output_channels)
 
     def __getitem__(self, key: int) -> _VelvetNoiseSequence:
+        """Return an output-channel sequence by index.
+
+        Parameters
+        ----------
+        key : int
+            Output-channel index.
+
+        Returns
+        -------
+        _VelvetNoiseSequence
+            Requested output-channel sequence.
+        """
         return self.output_channels[key]
 
-    def __setitem__(self, key: int, value: Sequence[_VelvetNoiseSequence]) -> None:
+    def __setitem__(self, key: int, value: _VelvetNoiseSequence) -> None:
+        """Replace an output-channel sequence by index.
+
+        Parameters
+        ----------
+        key : int
+            Output-channel index.
+        value : _VelvetNoiseSequence
+            Replacement output-channel sequence.
+
+        Returns
+        -------
+        None
+        """
         self.output_channels[key] = value
 
 
@@ -368,18 +698,36 @@ class VelvetNoise(Decorrelator):
 
     @property
     def velvet_noise(self) -> _ParallelVelvetNoise:
-        """The generated velvet noise sequence for each ``filtered_channel``, stored as a dataclass."""
+        """Return the generated velvet-noise sequences.
+
+        Returns
+        -------
+        _ParallelVelvetNoise
+            Per-channel segmented impulse sequences, regenerated if their
+            defining parameters changed.
+        """
         # Regenerate if duration, num_impulses, num_outs, or fir_length_samples is changed after initialization,
         # since these are the only parameters that affect the velvet noise sequence.
         if (
             self.num_outs != self._velvet_noise.num_outs
-            or self.num_impulses != self._velvet_noise.num_impluses
+            or self.num_impulses != self._velvet_noise.num_impulses
             or self.fir_length_samples != self._velvet_noise.fir_length_samples
         ):
             self._velvet_noise = self._generate()
         return self._velvet_noise
 
     def __post_init__(self) -> None:
+        """Validate configuration and generate the initial impulse sequences.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ValueError
+            If the requested filter is not sparse.
+        """
         if self.num_impulses >= self.fir_length_samples * 0.2:
             density = self.density
             raise ValueError(
@@ -392,7 +740,18 @@ class VelvetNoise(Decorrelator):
         self._velvet_noise = self._generate()
 
     def convolve(self, input_signal: NDArray) -> NDArray:
-        """Perform the optimized convolution of the velvet noise filters onto each ``filtered_channel`` of a signal."""
+        """Convolve configured velvet-noise filters with a stereo signal.
+
+        Parameters
+        ----------
+        input_signal : NDArray
+            Stereo signal with shape ``(num_samples, num_outs)``.
+
+        Returns
+        -------
+        NDArray
+            Filtered signal with the same shape as ``input_signal``.
+        """
         sig_len = len(input_signal)
         segment_buffer = np.zeros(sig_len, dtype=np.float32)
         output_signal = np.zeros((sig_len, self.num_outs), dtype=np.float32)
@@ -416,13 +775,18 @@ class VelvetNoise(Decorrelator):
         return output_signal
 
     def decorrelate(self, input_signal: NDArray) -> NDArray:
-        """Perform a velvet noise decorrelation on input_signal.
+        """Decorrelate a mono or stereo signal with velvet noise.
 
-        As of right now only supports stereo decorrelation (i.e. no quad-channel, 5.1, 7.1, etc. support)
-        This method will perform an optimized velvet noise convolution for each channel to generate the side channel content.
-        Then it will interpolate between the mid (dry) and side (wet) channels at self.width.
-        Lastly, the output signal is normalized by the RMS of the input signal.
+        Parameters
+        ----------
+        input_signal : NDArray
+            Mono signal with shape ``(num_samples,)`` or stereo signal with
+            shape ``(num_samples, 2)``.
 
+        Returns
+        -------
+        NDArray
+            Decorrelated stereo signal.
         """
         input_signal = to_float32(input_signal)
 
@@ -444,17 +808,35 @@ class VelvetNoise(Decorrelator):
 
     @property
     def density(self) -> float:
-        """The average density in impulses per second. Homogeneous across all channels."""
+        """The average density in impulses per second. Homogeneous across all channels.
+
+        Returns
+        -------
+        float
+            Impulses per second.
+        """
         return self.num_impulses / self.duration_seconds
 
     @property
     def fir_length_samples(self) -> int:
-        """The length of the finite impulse response in samples. Homogeneous across all channels."""
+        """The length of the finite impulse response in samples. Homogeneous across all channels.
+
+        Returns
+        -------
+        int
+            Filter length in samples.
+        """
         return int(round(self.sample_rate_hz * self.duration_seconds))
 
     @property
     def FIR(self) -> NDArray:
-        """Return the finite impulse responses (for each channel) as a numpy array of shape ``(fir_length_samples, num_outs)``."""
+        """Return the finite impulse responses for filtered channels.
+
+        Returns
+        -------
+        NDArray
+            FIR array of shape ``(fir_length_samples, len(filtered_channels))``.
+        """
         num_filters = len(self.filtered_channels)
         fir = np.zeros((self.fir_length_samples, num_filters))
         indexes, values = (
@@ -473,7 +855,14 @@ class VelvetNoise(Decorrelator):
         return fir
 
     @property
-    def unfiltered_channels(self) -> filter:
+    def unfiltered_channels(self) -> Iterator[int]:
+        """Iterate over output channels without a velvet-noise filter.
+
+        Returns
+        -------
+        Iterator[int]
+            Unfiltered output-channel indexes.
+        """
         return filter(lambda i: i not in self.filtered_channels, range(self.num_outs))
 
     def _generate(self) -> _ParallelVelvetNoise:
@@ -485,6 +874,10 @@ class VelvetNoise(Decorrelator):
         Segmented decay is preferred to exponential decay because it uses
         less multiplication, and produces satisfactory results.
 
+        Returns
+        -------
+        _ParallelVelvetNoise
+            Sparse, signed impulse sequences representing the FIR filters.
         """
         rng = np.random.default_rng(self.seed)
 
@@ -557,9 +950,31 @@ def generate_velvet_noise(
     log_distribution_strength: float = 1.0,
     seed: int | None = None,
 ) -> NDArray:
-    """More performant alternative to ``VelvetNoise.FIR`` for generating a velvet noise FIR filter as an NDArray.
+    """Generate a multi-channel velvet-noise Finite Impulse Response (FIR) filter.
 
-    Generate a velvet noise Finite Impulse Response (FIR) filter to convolve with an input signal.
+    This is a more performant, stateless alternative to :attr:``VelvetNoise.FIR`` for generating a velvet-noise FIR filter as a dense NDArray.
+
+    Parameters
+    ----------
+    duration_seconds : float
+        FIR duration in seconds.
+    num_impulses : int
+        Number of signed impulses in each channel's filter.
+    num_outs : int
+        Number of output channels.
+    sample_rate_hz : int
+        FIR sample rate in hertz.
+    segment_envelope : Sequence[float]
+        Per-segment gain coefficients.
+    log_distribution_strength : float
+        Logarithmic impulse-distribution strength in ``[0.0, 1.0]``.
+    seed : int or None
+        Seed for reproducible filter generation.
+
+    Returns
+    -------
+    NDArray
+        ``float32`` FIR array of shape ``(fir_length_samples, num_outs)``.
 
     To avoid audible smearing of transients the following are optionally applied:
         - A segmented decay envelope.
@@ -631,7 +1046,29 @@ def generate_velvet_noise(
 def convolve_velvet_noise(
     input_signal: NDArray, velvet_noise_filters: NDArray
 ) -> NDArray:
-    """Simple, stateless, but less performant alternative to ``VelvetNoise.convolve`` for convolving velvet noise filters.
+    """Convolve signals with dense velvet-noise FIR filters.
+
+    Simple, stateless, but less performant alternative to ``VelvetNoise.convolve`` for convolving velvet noise filters.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Audio signal with samples on the first axis.
+    velvet_noise_filters : NDArray
+        FIR coefficients with one column per signal channel.
+
+    Returns
+    -------
+    NDArray
+        ``float32`` convolved signal with the shape of ``input_signal``.
+
+    Raises
+    ------
+    ValueError
+        If the signal and filter channel counts differ.
+
+    Notes
+    -----
     ``input_signal`` is an ``NDArray`` of shape ``(n, num_channels)`` and ``velvet_noise_filters`` is an ``NDArray`` of shape (m, num_channels).
     A ``ValueError`` is raised if the number of channels differs between ``input_signal`` and ``velvet_noise_filters``.
 
@@ -670,19 +1107,48 @@ def convolve_velvet_noise(
 
 @dataclass(kw_only=True, slots=True)
 class WhiteNoise(Decorrelator):
-    duration_seconds: int = 0.03
+    """Decorrelate a signal using independently generated white-noise FIRs.
+
+    Parameters
+    ----------
+    duration_seconds : float
+        FIR duration in seconds.
+    seed : int or None
+        Seed for reproducible white-noise filter generation.
+    """
+
+    duration_seconds: float = 0.03
     seed: int | None = None
 
     _white_noise_filter: NDArray = ...
 
     def __post_init__(self) -> None:
+        """Generate the white-noise filters.
+
+        Returns
+        -------
+        None
+        """
         rng = np.random.default_rng(self.seed)
 
-        self.white_noise_filter = rng.normal(
+        self._white_noise_filter = rng.normal(
             loc=0, scale=1, size=(self.fir_length_samples, self.num_outs)
         )
 
     def decorrelate(self, input_signal: NDArray) -> NDArray:
+        """Decorrelate a mono or stereo signal with white-noise FIRs.
+
+        Parameters
+        ----------
+        input_signal : NDArray
+            Mono signal with shape ``(num_samples,)`` or stereo signal with
+            shape ``(num_samples, 2)``.
+
+        Returns
+        -------
+        NDArray
+            RMS-normalized decorrelated stereo signal.
+        """
         input_signal = to_float32(input_signal)
 
         if input_signal.ndim == 1:
@@ -695,7 +1161,7 @@ class WhiteNoise(Decorrelator):
         for channel_index in range(self.num_outs):
             output_signal[:, channel_index] = np.convolve(
                 input_signal[:, channel_index],
-                self.white_noise_filter[:, channel_index],
+                self._white_noise_filter[:, channel_index],
                 mode='same',
             )
 
@@ -708,10 +1174,22 @@ class WhiteNoise(Decorrelator):
 
     @property
     def fir_length_samples(self) -> int:
-        """The length of the finite impulse response in samples. Homogeneous across all channels."""
+        """Return the finite-impulse-response length.
+
+        Returns
+        -------
+        int
+            Filter length in samples.
+        """
         return int(round(self.sample_rate_hz * self.duration_seconds))
 
     @property
     def FIR(self) -> NDArray:
-        """Return the finite impulse responses (for each channel) as a numpy array of shape ``(fir_length_samples, num_outs)``."""
+        """Return the generated white-noise filters.
+
+        Returns
+        -------
+        NDArray
+            FIR array with shape ``(fir_length_samples, num_outs)``.
+        """
         return self._white_noise_filter

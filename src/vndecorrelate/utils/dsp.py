@@ -1,3 +1,5 @@
+"""Digital-signal-processing helpers for stereo audio analysis."""
+
 from enum import StrEnum
 
 import numpy as np
@@ -14,17 +16,21 @@ SEGMENTED_DECAY_ENVELOPE: tuple[float] = (0.85, 0.55, 0.35, 0.2)
 
 
 class NormalizeMode(StrEnum):
+    """Channel-layout modes used by normalization functions."""
+
     STEREO = 'stereo'
     DUAL_MONO = 'dual_mono'
 
 
 class LayoutMode(StrEnum):
+    """Represent stereo channels as left-right or mid-side pairs."""
+
     LR = 'LR'  # Left-Right
     MS = 'MS'  # Mid-Side
 
 
 def apply_stereo_width(input_signal: NDArray, width: float) -> None:
-    """Return ``input_signal`` with the Mid-Side balance interpolated at width.
+    """Adjust a stereo signal's mid-side balance in place.
 
     ``input_signal`` MUST be a Left-Right stereo signal of shape (n, 2).
 
@@ -35,6 +41,10 @@ def apply_stereo_width(input_signal: NDArray, width: float) -> None:
     width : float
         The percentage to scale the side channel by [0.0, 1.0].
 
+    Returns
+    -------
+    None
+        ``input_signal`` is modified in-place.
     """
     LR_to_MS(input_signal)
     input_signal[:, 0] *= 1.0 - width
@@ -45,7 +55,7 @@ def apply_stereo_width(input_signal: NDArray, width: float) -> None:
 def encode_signal_to_side_channel(
     input_signal: NDArray, decorrelated_signal: NDArray
 ) -> None:
-    """Encodes ``decorrelated_signal`` in-place to be the side channel of ``input_signal``.
+    """Encode ``decorrelated_signal`` as the side channel of ``input_signal``.
 
     ``input_signal`` and decorrelated_signal MUST be a Left-Right stereo signal of shape (n, 2).
     Assumes that ``input_signal`` is a mono signal duplicated to stereo,
@@ -58,6 +68,10 @@ def encode_signal_to_side_channel(
     decorrelated_signal : NDArray
         The decorrelated signal.
 
+    Returns
+    -------
+    None
+        ``decorrelated_signal`` is modified in-place.
     """
     check_stereo(input_signal)
     check_stereo(decorrelated_signal)
@@ -69,7 +83,18 @@ def encode_signal_to_side_channel(
 
 
 def to_float32(input_signal: NDArray) -> NDArray[np.float32]:
-    """Return ``input_signal`` as an array of 32 bit floats."""
+    """Convert an array to ``float32`` without an unnecessary copy.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Array to convert.
+
+    Returns
+    -------
+    NDArray[np.float32]
+        ``input_signal`` represented with the ``float32`` dtype.
+    """
     return input_signal.astype(np.float32, copy=False)
 
 
@@ -78,8 +103,22 @@ def peak_normalize(
     mode: NormalizeMode = NormalizeMode.DUAL_MONO,
     epsilon: float = EPSILON,
 ) -> None:
-    """Normalize ``input_signal`` in-place to ``[-1, 1]`` using the calculated peaks."""
+    """Peak-normalize an audio signal in place.
 
+    Parameters
+    ----------
+    input_signal : NDArray
+        Mono or stereo audio signal to normalize.
+    mode : NormalizeMode
+        Whether stereo signals are normalized jointly or per channel.
+    epsilon : float
+        Small positive value that prevents division by zero.
+
+    Returns
+    -------
+    None
+        ``input_signal`` is modified in-place.
+    """
     match (input_signal.ndim, mode):
         case (1, _) | (_, NormalizeMode.STEREO):
             input_axis = None
@@ -95,8 +134,24 @@ def rms_normalize(
     mode: NormalizeMode = NormalizeMode.DUAL_MONO,
     epsilon: float = EPSILON,
 ) -> None:
-    """Normalize ``output_signal`` in-place to the rms value of ``input_signal``."""
+    """Match an output signal's RMS level to an input signal in-place.
 
+    Parameters
+    ----------
+    input_signal : NDArray
+        Reference mono or stereo audio signal.
+    output_signal : NDArray
+        Signal whose RMS level is adjusted.
+    mode : NormalizeMode
+        Whether stereo signals are normalized jointly or per channel.
+    epsilon : float
+        Small positive value that prevents division by zero.
+
+    Returns
+    -------
+    None
+        ``output_signal`` is modified in-place.
+    """
     match (input_signal.ndim, mode):
         case (1, _) | (_, NormalizeMode.STEREO):
             input_axis = None
@@ -115,13 +170,35 @@ def rms_normalize(
 
 
 def mono_to_stereo(input_signal: NDArray) -> NDArray:
-    """Convert a mono signal of shape ``(n,)`` to a stereo signal of shape ``(n, 2)``."""
+    """Duplicate a mono signal into left and right channels.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Mono signal with shape ``(num_samples,)``.
+
+    Returns
+    -------
+    NDArray
+        Stereo signal with shape ``(num_samples, 2)``.
+    """
     check_mono(input_signal)
     return np.column_stack((input_signal, input_signal))
 
 
 def stereo_to_mono(input_signal: NDArray) -> NDArray:
-    """Convert a stereo signal of shape ``(n, 2)`` to a mono signal of shape ``(n,)``."""
+    """Average a stereo signal's channels into a mono signal.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Stereo signal with shape ``(num_samples, 2)``.
+
+    Returns
+    -------
+    NDArray
+        Mono signal with shape ``(num_samples,)``.
+    """
     check_stereo(input_signal)
     return np.sum(input_signal, axis=1) * 0.5
 
@@ -140,6 +217,10 @@ def LR_to_MS(input_signal: NDArray) -> None:
     input_signal : NDArray
         The original LR stereo signal.
 
+    Returns
+    -------
+    None
+        ``input_signal`` is modified in place.
     """
     check_stereo(input_signal)
     M = np.sum(input_signal, axis=1) * 0.5
@@ -163,6 +244,10 @@ def MS_to_LR(input_signal: NDArray) -> None:
     input_signal : NDArray
         The original MS stereo signal.
 
+    Returns
+    -------
+    None
+        ``input_signal`` is modified in place.
     """
     check_stereo(input_signal)
     L = np.sum(input_signal, axis=1)
@@ -319,12 +404,33 @@ def cross_correlogram(
     x: NDArray,
     y: NDArray,
     sample_rate_hz: int = 44100,
-    max_lag_seconds: int = 0.02,
+    max_lag_seconds: float = 0.02,
     window_size_seconds: float = 0.02,
     stride_seconds: float = 0.01,
     epsilon: float = EPSILON,
 ) -> NDArray:
-    """Compute the cross-correlogram between ``x`` and ``y``."""
+    """Compute a windowed, normalized cross-correlogram.
+
+    Parameters
+    ----------
+    x, y : NDArray
+        Equal-length mono signals.
+    sample_rate_hz : int
+        Signal sample rate in hertz.
+    max_lag_seconds : float
+        Largest absolute lag to include, in seconds.
+    window_size_seconds : float
+        Analysis-window duration in seconds.
+    stride_seconds : float
+        Step between adjacent analysis windows in seconds.
+    epsilon : float
+        Small positive value that prevents division by zero.
+
+    Returns
+    -------
+    NDArray
+        Normalized correlation values with shape ``(num_windows, num_lags)``.
+    """
     check_mono(x)
     check_mono(y)
     check_equal_length(x, y)
@@ -367,7 +473,24 @@ def sine_sweep(
     duration_seconds: float,
     sample_rate_hz: int = 44100,
 ) -> NDArray:
-    """Generate a sine sweep signal from ``start_freq_hz`` to ``end_freq_hz`` over ``duration_seconds``."""
+    """Generate an exponential sine sweep.
+
+    Parameters
+    ----------
+    start_freq_hz : float
+        Initial frequency in hertz.
+    end_freq_hz : float
+        Final frequency in hertz.
+    duration_seconds : float
+        Sweep duration in seconds.
+    sample_rate_hz : int
+        Output sample rate in hertz.
+
+    Returns
+    -------
+    NDArray
+        ``float32`` mono signal containing the sweep.
+    """
     t = np.linspace(
         0, duration_seconds, int(sample_rate_hz * duration_seconds), endpoint=False
     )
@@ -379,28 +502,34 @@ def sine_sweep(
 def polar_coordinates(
     left: NDArray,
     right: NDArray,
-    mode: LayoutMode = 'MS',
+    mode: LayoutMode = LayoutMode.MS,
     semicircular: bool = True,
     normalize: bool = True,
     compute_weights: bool = True,
-) -> tuple[NDArray, NDArray, NDArray]:
+) -> tuple[NDArray, NDArray] | tuple[NDArray, NDArray, NDArray]:
     """Return each sample of the ``left`` and ``right`` channels as polar coordinates,
     by default amplitude weights are also returned: ``(radii, thetas, weights)``.
 
     Parameters
     ----------
-    left: NDArray, shape (n,)
+    left : NDArray
         The left channel with values in [-1, 1]
-    right: NDArray, shape (n,)
+    right : NDArray
         The right channel with values in [-1, 1]
-    mode: LayoutMode
+    mode : LayoutMode
         The channel layout to use for calculating angle. Defaults to LayoutMode.MS (Mid-Side).
-    semicircular: bool
+    semicircular : bool
         Whether to fold the full (-180, 180] range onto [-90, 90]. Default is True.
-    normalize: bool
+    normalize : bool
         Whether to normalize the radii component of the polar coordinates. Default is True.
-    compute_weights: bool
+    compute_weights : bool
         Whether to compute and return amplitude weights for the polar coordinates.
+
+    Returns
+    -------
+    tuple[NDArray, NDArray] or tuple[NDArray, NDArray, NDArray]
+        Radii and angles in radians; normalized amplitude weights are included
+        when ``compute_weights`` is ``True``.
     """
     # in radians, (-π, +π]
     thetas = (
@@ -432,13 +561,39 @@ def polar_coordinates(
 def polar_to_cartesian(
     angles_degrees: NDArray, radii: NDArray
 ) -> tuple[NDArray, NDArray]:
-    """Given ``angles_degrees`` and ``radii``, return (xs, ys)"""
+    """Convert vectorscope polar coordinates to Cartesian coordinates.
+
+    Parameters
+    ----------
+    angles_degrees : NDArray
+        Vectorscope angles in degrees, where zero points upward.
+    radii : NDArray
+        Radius for each angle.
+
+    Returns
+    -------
+    tuple[NDArray, NDArray]
+        Cartesian ``x`` and ``y`` coordinates.
+    """
     thetas = np.radians(angles_degrees)
     return radii * np.sin(thetas), radii * np.cos(thetas)
 
 
 def exponential_decay(t: float, k: float = 2) -> float:
-    """evaluate :math:``e⁻ᵏᵗ`` for a given time ``t`` and decay rate ``k``."""
+    """Evaluate an exponential-decay curve.
+
+    Parameters
+    ----------
+    t : float
+        Time coordinate.
+    k : float
+        Positive decay rate.
+
+    Returns
+    -------
+    float
+        ``exp(-k * t)``.
+    """
     return np.e ** (-k * t)
 
 
@@ -457,7 +612,7 @@ def generate_decay_envelope(
 
     Returns
     -------
-    tuple[float, ...]:
+    tuple[float, ...]
         A tuple of ``num_segments`` floats that define the decay envelope.
     """
     return tuple(
@@ -467,22 +622,68 @@ def generate_decay_envelope(
 
 
 def radians_to_degrees(radians: NDArray) -> NDArray:
-    """Return the input array of radians as degrees."""
+    """Convert radians to vectorscope degrees clipped to ``[-90, 90]``.
+
+    Parameters
+    ----------
+    radians : NDArray
+        Angles in radians.
+
+    Returns
+    -------
+    NDArray
+        Corresponding clipped angles in degrees.
+    """
     return np.clip(
         np.degrees(radians), -90.0, 90.0
     )  # Clip to ±90° (handles phase-inverted / out-of-phase samples gracefully)
 
 
 def amplitude_to_db(input_signal: NDArray) -> NDArray:
+    """Convert linear amplitudes to decibels.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Non-negative linear amplitudes.
+
+    Returns
+    -------
+    NDArray
+        Amplitudes expressed as ``20 * log10(amplitude + EPSILON)``.
+    """
     return 20 * np.log10(input_signal + EPSILON)
 
 
 def power_to_db(input_signal: NDArray) -> NDArray:
+    """Convert linear power values to decibels.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Non-negative linear power values.
+
+    Returns
+    -------
+    NDArray
+        Powers expressed as ``10 * log10(power + EPSILON)``.
+    """
     return 10 * np.log10(input_signal + EPSILON)
 
 
 def generate_convex_hull(input_signal: NDArray) -> NDArray:
-    """Given ``input_signal`` (cartesian coordinates) of shape (n, 2), return its convex hull."""
+    """Compute ordered convex-hull vertices for Cartesian points.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Cartesian points with shape ``(num_points, 2)``.
+
+    Returns
+    -------
+    NDArray
+        Non-origin hull vertices sorted by their polar angle.
+    """
     convex_hull = ConvexHull(input_signal)
     hull_vertices = input_signal[convex_hull.vertices]
 
@@ -509,9 +710,9 @@ def generate_pseudo_hull(
     percentile: float = 95.0,
     smoothing_sigma: float = 4.0,
     use_convex_hull: bool = True,
-):
-    """
-    Build a polar envelope (pseudo convex hull) from sample polar coordinates.
+) -> tuple[NDArray, NDArray, NDArray, NDArray]:
+    """Build a polar envelope from sample polar coordinates.
+
 
     Steps:
       1. Bin the 180-degree angular range into num_bins slices.

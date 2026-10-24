@@ -1,3 +1,5 @@
+"""Objective functions and scalar optimizers for audio decorrelators."""
+
 from typing import Any, Callable
 
 import numpy as np
@@ -9,7 +11,18 @@ from vndecorrelate.utils.dsp import EPSILON, polar_coordinates
 
 
 def left_right_correlation(stereo_signal: NDArray) -> float:
-    """Return the dot product between the normalized left and right channels: [-1.0, 1.0]"""
+    """Compute the normalized correlation of a stereo signal's channels.
+
+    Parameters
+    ----------
+    stereo_signal : NDArray
+        Stereo signal with shape ``(num_samples, 2)``.
+
+    Returns
+    -------
+    float
+        The left-right correlation coefficient in ``[-1.0, 1.0]``.
+    """
     return np.dot(
         stereo_signal[:, 0] / (np.linalg.norm(stereo_signal[:, 0]) + EPSILON),
         stereo_signal[:, 1] / (np.linalg.norm(stereo_signal[:, 0]) + EPSILON),
@@ -17,19 +30,58 @@ def left_right_correlation(stereo_signal: NDArray) -> float:
 
 
 def angular_variance(thetas: NDArray, weights: NDArray) -> float:
-    """Return the amplitude-weighted angular variance (spread) of the polar samples: E_w[θ²]"""
+    """Compute the amplitude-weighted second angular moment.
+
+    Parameters
+    ----------
+    thetas : NDArray
+        Polar angles in radians.
+    weights : NDArray
+        Non-negative weights corresponding to ``thetas``.
+
+    Returns
+    -------
+    float
+        The weighted second moment, ``E_w[theta**2]``.
+    """
     return float(np.sum(weights * thetas**2))
 
 
 def centroid(thetas: NDArray, weights: NDArray) -> float:
-    """Return the mean theta (centroid) of the polar samples: E_w[θ]"""
+    """Compute the amplitude-weighted angular centroid.
+
+    Parameters
+    ----------
+    thetas : NDArray
+        Polar angles in radians.
+    weights : NDArray
+        Non-negative weights corresponding to ``thetas``.
+
+    Returns
+    -------
+    float
+        The weighted first moment, ``E_w[theta]``.
+    """
     return float(np.sum(weights * thetas))
 
 
-def polar_skewness(
-    thetas: NDArray, weights: NDArray, angular_variance: NDArray
-) -> float:
-    """Return the skewness of the polar samples: ``E_w[θ³]``"""
+def polar_skewness(thetas: NDArray, weights: NDArray, angular_variance: float) -> float:
+    """Compute standardized amplitude-weighted angular skewness.
+
+    Parameters
+    ----------
+    thetas : NDArray
+        Polar angles in radians.
+    weights : NDArray
+        Non-negative weights corresponding to ``thetas``.
+    angular_variance : float
+        Weighted second moment of ``thetas``.
+
+    Returns
+    -------
+    float
+        The standardized weighted third moment.
+    """
     return (
         float(np.sum(weights * thetas**3))
         /
@@ -39,7 +91,21 @@ def polar_skewness(
 
 
 def max_angular_exceedance(thetas: NDArray, angle_limit: float) -> float:
-    """return the maximum angular exceedance of the polar samples."""
+    """Compute how far the largest polar angle exceeds a limit.
+
+    Parameters
+    ----------
+    thetas : NDArray
+        Polar angles in radians.
+    angle_limit : float
+        Largest permitted absolute angle in radians.
+
+    Returns
+    -------
+    float
+        Zero when every angle is within the limit; otherwise the maximum
+        exceedance in radians.
+    """
     return max(0.0, float(np.max(np.abs(thetas)) - angle_limit))
 
 
@@ -53,11 +119,32 @@ def symmetry_aware_objective(
     lambda_correlation: float,  # correlation penalty weight
     lambda_penalty: float,  # constrain violation penalty
 ) -> float:
-    """
-    Scalar objective function for maximizing stereo width through a Convex Hull area proxy (weighted angular variance).
-    Penalizes off-centeredness, skewness, correlation, and angular exceedance of the polar samples.
+    r"""Evaluate a scalar objective for stereo-image optimization.
 
-    Returns a value to minimize (negate of the multi-objective).
+    The objective rewards weighted angular spread and penalizes an off-center
+    image, skewness, left-right correlation, and angles beyond ``angle_limit``.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Input audio signal passed to ``decorrelator``.
+    decorrelator : Decorrelator
+        Decorrelator whose output is evaluated.
+    angle_limit : float
+        Largest permitted absolute polar angle in radians.
+    lambda_mean : float
+        Weight for the angular-centroid penalty.
+    lambda_skew : float
+        Weight for the angular-skewness penalty.
+    lambda_correlation : float
+        Weight for the left-right correlation penalty.
+    lambda_penalty : float
+        Weight for the angular-limit violation penalty.
+
+    Returns
+    -------
+    float
+        Negated objective value suitable for minimization.
 
     Terms
     -----
@@ -67,7 +154,6 @@ def symmetry_aware_objective(
     ``-λ₃∙r²``            correlation — minimize squared left/right correlation ``r² → 0``\n
     ``-penalty``         angle constraint via quadratic penalty
     """
-
     output_signal = decorrelator.decorrelate(input_signal)
 
     radii, thetas, weights = polar_coordinates(
@@ -106,8 +192,24 @@ def symmetry_aware_objective(
 
 
 def grid_scan(
-    input_signal: NDArray, decorrelators: list[Decorrelator], **kwargs
+    input_signal: NDArray, decorrelators: list[Decorrelator], **kwargs: object
 ) -> NDArray:
+    """Evaluate an objective over a collection of decorrelators.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Input audio signal supplied to every decorrelator.
+    decorrelators : list[Decorrelator]
+        Candidate decorrelators to evaluate.
+    **kwargs
+        Keyword arguments forwarded to :func:`symmetry_aware_objective`.
+
+    Returns
+    -------
+    NDArray
+        One objective value per candidate decorrelator.
+    """
     print('Starting Grid Scan')
     return np.array(
         [
@@ -118,6 +220,21 @@ def grid_scan(
 
 
 def get_local_minima(scores: NDArray, grid_size: int) -> list[int]:
+    """Find local-minimum indexes in a one-dimensional score grid.
+
+    Parameters
+    ----------
+    scores : NDArray
+        Objective values sampled on the grid.
+    grid_size : int
+        Number of points in ``scores`` to examine.
+
+    Returns
+    -------
+    list[int]
+        Indexes of strict local minima, or the global-minimum index if none
+        exist.
+    """
     local_minima = [
         i
         for i in range(1, grid_size - 1)
@@ -130,10 +247,28 @@ def get_local_minima(scores: NDArray, grid_size: int) -> list[int]:
 
 def optimize_local_minima(
     local_minima: list[int],
-    scalars: NDArray[np.floating[Any]],
+    scalars: NDArray,
     grid_size: int,
     scalar_objective: Callable[[float], float],
 ) -> np.floating[Any]:
+    """Refine the best candidates from a scalar grid search.
+
+    Parameters
+    ----------
+    local_minima : list[int]
+        Grid indexes that bound candidate minima.
+    scalars : NDArray
+        Scalar values sampled by the initial grid search.
+    grid_size : int
+        Number of scalar grid points.
+    scalar_objective : Callable[[float], float]
+        Objective function to minimize.
+
+    Returns
+    -------
+    numpy.floating
+        The scalar value with the lowest refined objective.
+    """
     best_scalar, best_score = 0.0, np.inf
 
     print('Starting Local Minima optimization')
@@ -159,7 +294,7 @@ def optimize_haas_delay(
     *,
     input_signal: NDArray,
     sample_rate_hz: int,
-    max_delay_seconds: int,
+    max_delay_seconds: float,
     grid_size: int = 400,
     angle_limit: float = np.pi / 4,
     lambda_mean: float = 5.0,
@@ -167,7 +302,23 @@ def optimize_haas_delay(
     lambda_correlation: float = 15.0,
     lambda_penalty: float = 1e3,
 ) -> float:
-    """Return the optimized ``delay_time_seconds`` of HaasEffect applied to ``input_signal`` given ``sample_rate_hz`` and ``max_delay_seconds``
+    r"""Optimize the delay time for a :class:`HaasEffect`.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Audio signal to decorrelate and evaluate.
+    sample_rate_hz : int
+        Input signal sample rate in hertz.
+    max_delay_seconds : float
+        Upper bound for the delay-time search interval in seconds.
+    grid_size : int
+        Number of candidates in the initial grid search.
+    angle_limit : float
+        Largest permitted absolute polar angle in radians.
+    lambda_mean, lambda_skew, lambda_correlation, lambda_penalty : float
+        Weights for the centroid, skewness, correlation, and angular-limit
+        penalties, respectively.
 
     Terms
     -----
@@ -177,8 +328,10 @@ def optimize_haas_delay(
     ``-λ₃∙r²``            correlation — minimize squared left/right correlation ``r² → 0``\n
     ``-penalty``         angle constraint via quadratic penalty
 
-    Returns:
-        float: The optimized delay time :math:``τ ∈ [0.0 , max_delay_seconds]``, i.e. ``delay_time_seconds``
+    Returns
+    -------
+    float
+        Optimized ``delay_time_seconds`` in ``[0.0, max_delay_seconds]``.
     """
     # tau: length of delay for channel
     taus = np.linspace(0.0, max_delay_seconds, grid_size)
@@ -240,7 +393,27 @@ def optimize_velvet_noise(
     lambda_correlation: float = 15.0,
     lambda_penalty: float = 1e3,
 ) -> float:
-    """Return the optimized ``log_distribution_strength`` of log-distributed VelvetNoise applied to ``input_signal`` given ``duration_seconds``, ``num_impulses`` and ``seed``
+    r"""Optimize a :class:`VelvetNoise` logarithmic-distribution strength.
+
+    Parameters
+    ----------
+    input_signal : NDArray
+        Audio signal to decorrelate and evaluate.
+    sample_rate_hz : int
+        Input signal sample rate in hertz.
+    duration_seconds : float
+        Duration of each candidate velvet-noise FIR in seconds.
+    num_impulses : int
+        Number of impulses in each candidate FIR.
+    seed : int
+        Random seed used to construct reproducible candidate filters.
+    grid_size : int
+        Number of candidates in the initial grid search.
+    angle_limit : float
+        Largest permitted absolute polar angle in radians.
+    lambda_mean, lambda_skew, lambda_correlation, lambda_penalty : float
+        Weights for the centroid, skewness, correlation, and angular-limit
+        penalties, respectively.
 
     Terms
     -----
@@ -250,8 +423,10 @@ def optimize_velvet_noise(
     ``-λ₃∙r²``            correlation — minimize squared left/right correlation ``r² → 0``\n
     ``-penalty``         angle constraint via quadratic penalty
 
-    Returns:
-        float: The optimized start-of-filter impulse concentration :math:``κ ∈ [0.0, 1.0]``, i.e. ``log_distribution_strength``
+    Returns
+    -------
+    float
+        Optimized ``log_distribution_strength`` in ``[0.0, 1.0]``.
     """
     kappas = np.linspace(0.0, 1.0, grid_size)
 
