@@ -1,7 +1,7 @@
-# .github/workflows/release.yml
+# .github/workflows/release.yaml
 #
 # Release Workflow — Python + uv
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Triggers: push to `master` that touches source files, or a manual dispatch
 #           where you choose the bump type (patch / minor / major).
 #
@@ -13,30 +13,6 @@
 #   5. Builds a source distribution + wheel with `uv build`.
 #   6. Creates a GitHub Release and attaches the built artefacts.
 #   7. Publishes the package to PyPI via Trusted Publisher (OIDC) — no tokens.
-#
-# Prerequisites
-# ─────────────────────────────────────────────────────────────────────────────
-# • Your package uses pyproject.toml and stores its version in:
-#     [project]
-#     version = "x.y.z"
-#   and optionally in src/vndecorrelate/__init__.py:
-#     __version__ = "x.y.z"
-#
-# • README.md already contains a badge using this exact placeholder text:
-#     ![Version](https://img.shields.io/badge/version-1.0.0-blue)
-#   (any existing version number works; the workflow keeps it in sync)
-#
-# • PyPI Trusted Publisher is configured at
-#   https://pypi.org/manage/account/publishing/ with:
-#     Publisher: GitHub Actions
-#     Owner:     <your-github-org-or-user>
-#     Repo:      <your-repo-name>
-#     Workflow:  release.yml
-#     Environment: pypi          ← must match the job's `environment:` below
-#
-# • The default GITHUB_TOKEN is sufficient for pushing commits/tags and
-#   creating releases — no extra secrets needed.
-# ─────────────────────────────────────────────────────────────────────────────
 
 name: Release
 
@@ -64,9 +40,9 @@ permissions:
   id-token: write # required for PyPI Trusted Publisher (OIDC)
 
 jobs:
-  # ──────────────────────────────────────────────────────────────────────────
-  # JOB 1 — version  (runs on master runner, no special env needed)
-  # ──────────────────────────────────────────────────────────────────────────
+  # ---------------------------------------------------------------------------
+  # JOB 1 — version (runs on master runner, no special env needed)
+  # ---------------------------------------------------------------------------
   version:
     name: Bump version & tag
     runs-on: ubuntu-latest
@@ -87,7 +63,9 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # ── Determine bump type ──────────────────────────────────────────────
+      # -----------------------------------------------------------------------
+      # Determine bump type
+      # -----------------------------------------------------------------------
       # Manual dispatch → use the user's choice.
       # Automatic push  → inspect the latest commit message for conventional
       #                   commit keywords; default to `patch`.
@@ -107,7 +85,9 @@ jobs:
             fi
           fi
 
-      # ── Calculate new version ────────────────────────────────────────────
+      # -----------------------------------------------------------------------
+      # Calculate new version
+      # -----------------------------------------------------------------------
       - name: Calculate new version
         id: bump
         run: |
@@ -136,7 +116,9 @@ jobs:
           echo "new_version=$NEW" >> "$GITHUB_OUTPUT"
           echo "tag=v$NEW"        >> "$GITHUB_OUTPUT"
 
-      # ── Update pyproject.toml ────────────────────────────────────────────
+      # -----------------------------------------------------------------------
+      # Update pyproject.toml
+      # -----------------------------------------------------------------------
       - name: Update version in pyproject.toml # handles both ' and " quotes
         run: |
           NEW="${{ steps.bump.outputs.new_version }}"
@@ -146,7 +128,9 @@ jobs:
             "s/(^version\s*=\s*)(['\"])([^'\"]*)\2/\${1}\${2}$NEW\${2}/m" \
             pyproject.toml
 
-      # ── Update __init__.py (if it exists) ────────────────────────────────
+      # -----------------------------------------------------------------------
+      # Update __init__.py (if it exists)
+      # -----------------------------------------------------------------------
       - name: Update __version__ in __init__.py # handles both ' and " quotes
         run: |
           NEW="${{ steps.bump.outputs.new_version }}"
@@ -163,7 +147,9 @@ jobs:
             echo "No top-level __init__.py found under src/ — skipping."
           fi
 
-      # ── Update CITATION.cff (if it exists) ──────────────────────────────
+      # -----------------------------------------------------------------------
+      # Update CITATION.cff (if it exists)
+      # -----------------------------------------------------------------------
       # CITATION.cff uses bare YAML scalars for both `version` and
       # `date-released`, e.g.:
       #   version: 1.2.3
@@ -182,7 +168,9 @@ jobs:
             echo "No CITATION.cff found — skipping."
           fi
 
-      # ── Update README badge ──────────────────────────────────────────────
+      # -----------------------------------------------------------------------
+      # Update README badge
+      # -----------------------------------------------------------------------
       - name: Update version badge in README.md
         run: |
           NEW="${{ steps.bump.outputs.new_version }}"
@@ -193,7 +181,9 @@ jobs:
             "s|/badge/version-[0-9]*\.[0-9]*\.[0-9]*-|/badge/version-$NEW-|g" \
             README.md
 
-      # ── Commit, tag, and push ────────────────────────────────────────────
+      # -----------------------------------------------------------------------
+      # Commit, tag, and push
+      # -----------------------------------------------------------------------
       - name: Commit version bump
         run: |
           TAG="${{ steps.bump.outputs.tag }}"
@@ -210,9 +200,9 @@ jobs:
           git tag -a "$TAG" -m "Release $TAG"
           git push origin HEAD:master --follow-tags
 
-  # ──────────────────────────────────────────────────────────────────────────
-  # JOB 2 — build  (depends on version job)
-  # ──────────────────────────────────────────────────────────────────────────
+  # ---------------------------------------------------------------------------
+  # JOB 2 - build (depends on version job)
+  # ---------------------------------------------------------------------------
   build:
     name: Build distribution packages
     runs-on: ubuntu-latest
@@ -244,9 +234,9 @@ jobs:
           path: dist/
           retention-days: 7
 
-  # ──────────────────────────────────────────────────────────────────────────
+  # ---------------------------------------------------------------------------
   # JOB 3 — github-release  (depends on build job)
-  # ──────────────────────────────────────────────────────────────────────────
+  # ---------------------------------------------------------------------------
   github-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
@@ -309,9 +299,9 @@ jobs:
           draft: false
           prerelease: false
 
-  # ──────────────────────────────────────────────────────────────────────────
+  # ---------------------------------------------------------------------------
   # JOB 4 — pypi-publish  (depends on build job, uses trusted publisher)
-  # ──────────────────────────────────────────────────────────────────────────
+  # ---------------------------------------------------------------------------
   pypi-publish:
     name: Publish to PyPI
     runs-on: ubuntu-latest

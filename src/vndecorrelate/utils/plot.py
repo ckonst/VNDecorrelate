@@ -334,9 +334,9 @@ def plot_polar_sample(
 
     sample_angles_deg = np.degrees(sample_angles_rad)
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Colormap
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     if colormap_name == 'cyan_scope':
         colormap = mcolors.LinearSegmentedColormap.from_list(
             'cyan_scope',
@@ -354,9 +354,9 @@ def plot_polar_sample(
     else:
         colormap = plt.get_cmap(colormap_name)
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Figure setup
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     background_color = '#0a0a0f'
     if axes is None:
         figure = plt.figure(figsize=figure_size, facecolor=background_color)
@@ -371,9 +371,9 @@ def plot_polar_sample(
 
     _draw_scope_frame(axes, show_grid=show_grid)
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Heatmap layer
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     if mode in ('heatmap', 'both'):
         angle_bin_edges = np.linspace(-90.0, 90.0, num_angle_bins + 1)
         radius_bin_edges = np.linspace(0.0, 1.0, num_radius_bins + 1)
@@ -438,9 +438,9 @@ def plot_polar_sample(
             patch_collection.set_array(np.array(wedge_colors))
             axes.add_collection(patch_collection)
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Scatter layer
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     if mode in ('scatter', 'both'):
         num_samples = len(sample_angles_deg)
 
@@ -501,9 +501,9 @@ def plot_polar_sample(
             zorder=4,
         )
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Stats annotation
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     center_angle = np.average(sample_angles_deg, weights=sample_radii)
     rms_level = np.sqrt(np.mean(sample_radii**2))
     rms_decibels = amplitude_to_db(rms_level + 1e-12)
@@ -526,9 +526,9 @@ def plot_polar_sample(
         fontfamily='monospace',
     )
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Title
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     num_samples = len(input_signal)
     duration_sec = num_samples / sample_rate_hz
     mode_label = {
@@ -770,9 +770,9 @@ def plot_polar_level(
     """
     check_stereo(input_signal)
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Polar conversion and hull construction
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     sample_radii, sample_angles_rad = polar_coordinates(
         input_signal[:, 0], input_signal[:, 1], compute_weights=False
     )
@@ -797,9 +797,9 @@ def plot_polar_level(
             use_convex_hull=False,
         )
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Figure setup
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     background_color = '#0a0a0f'
     if axes is None:
         figure = plt.figure(figsize=figure_size, facecolor=background_color)
@@ -814,9 +814,9 @@ def plot_polar_level(
 
     _draw_scope_frame(axes, show_grid=show_grid)
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Hull fill and outline
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     hull_x, hull_y = polar_to_cartesian(hull_angles, hull_radii)
 
     # For the fill, anchor both ends at the origin to form a closed fan.
@@ -827,9 +827,9 @@ def plot_polar_level(
     # Outline traces only the arc (not back through origin).
     axes.plot(hull_x, hull_y, color=hull_color, linewidth=1.8, alpha=0.9, zorder=4)
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Median overlay
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     if show_rms_overlay:
         median_x, median_y = polar_to_cartesian(median_bin_angles, median_bin_radii)
         median_fill_x = np.concatenate([[0.0], median_x, [0.0]])
@@ -847,9 +847,9 @@ def plot_polar_level(
             zorder=6,
         )
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Stats annotation
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     center_angle = np.average(sample_angles_deg, weights=sample_radii)
     rms_level = np.sqrt(np.mean(sample_radii**2))
     rms_decibels = 20.0 * np.log10(rms_level + 1e-12)
@@ -872,9 +872,9 @@ def plot_polar_level(
         fontfamily='monospace',
     )
 
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # Title
-    # ------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     num_samples = len(input_signal)
     duration_sec = num_samples / sample_rate_hz
     axes.set_title(
