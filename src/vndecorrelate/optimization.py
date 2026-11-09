@@ -295,11 +295,12 @@ def optimize_haas_delay(
     input_signal: NDArray,
     sample_rate_hz: int,
     max_delay_seconds: float,
+    min_delay_seconds: float = 0.0,
     grid_size: int = 400,
     angle_limit: float = np.pi / 4,
     lambda_mean: float = 5.0,
     lambda_skew: float = 2.0,
-    lambda_correlation: float = 15.0,
+    lambda_correlation: float = 5.0,
     lambda_penalty: float = 1e3,
 ) -> float:
     r"""Optimize the delay time for a :class:`HaasEffect`.
@@ -325,7 +326,7 @@ def optimize_haas_delay(
     ``+E_w[θ²]``         spread — maximize hull area proxy\n
     ``−λ₁·(E_w[θ])²``    centroid — keep hull centered on ``θ = 0``\n
     ``−λ₂·(E_w[θ³])²``   skewness — keep left/right halves balanced\n
-    ``-λ₃∙r²``            correlation — minimize squared left/right correlation ``r² → 0``\n
+    ``-λ₃∙r²``           correlation — minimize squared left/right correlation ``r² → 0``\n
     ``-penalty``         angle constraint via quadratic penalty
 
     Returns
@@ -334,7 +335,7 @@ def optimize_haas_delay(
         Optimized ``delay_time_seconds`` in ``[0.0, max_delay_seconds]``.
     """
     # tau: length of delay for channel
-    taus = np.linspace(0.0, max_delay_seconds, grid_size)
+    taus = np.linspace(min_delay_seconds, max_delay_seconds, grid_size)
 
     haas_effect_decorrelators = [
         HaasEffect(

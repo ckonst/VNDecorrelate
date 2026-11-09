@@ -117,12 +117,14 @@ def test__optimize_haas_delay(viola_signal):
     if viola.ndim == 1:
         viola = mono_to_stereo(viola)
 
+    min_delay_seconds = 0.01
     max_delay_seconds = 0.03
 
     tau = optimize_haas_delay(
         input_signal=viola,
         sample_rate_hz=fs,
         max_delay_seconds=max_delay_seconds,
+        min_delay_seconds=min_delay_seconds,
     )
     hed = HaasEffect(
         sample_rate_hz=fs,
