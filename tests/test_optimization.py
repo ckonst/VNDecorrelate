@@ -1,8 +1,10 @@
 import pytest
 import scipy.io.wavfile as wavfile
+import numpy as np
 from matplotlib import pyplot as plt
 
 from vndecorrelate.decorrelation import HaasEffect, VelvetNoise
+from vndecorrelate import optimization
 from vndecorrelate.optimization import optimize_haas_delay, optimize_velvet_noise
 from vndecorrelate.utils.dsp import mono_to_stereo
 from vndecorrelate.utils.plot import (
@@ -11,6 +13,64 @@ from vndecorrelate.utils.plot import (
     plot_polar_sample,
     plot_signal,
 )
+
+
+def test__optimize_haas_delay_uses_configured_delay_bounds(monkeypatch):
+    min_delay_seconds = 0.01
+    max_delay_seconds = 0.03
+    grid_size = 3
+
+    monkeypatch.setattr(
+        optimization,
+        'grid_scan',
+        lambda *_args, **_kwargs: np.zeros(grid_size),
+    )
+
+    def fake_optimize_local_minima(local_minima, scalars, received_grid_size, _):
+        assert local_minima == [0]
+        assert received_grid_size == grid_size
+        np.testing.assert_allclose(
+            scalars,
+            [min_delay_seconds, 0.02, max_delay_seconds],
+        )
+        return scalars[1]
+
+    monkeypatch.setattr(optimization, 'optimize_local_minima', fake_optimize_local_minima)
+
+    result = optimize_haas_delay(
+        input_signal=np.ones((8, 2)),
+        sample_rate_hz=100,
+        min_delay_seconds=min_delay_seconds,
+        max_delay_seconds=max_delay_seconds,
+        grid_size=grid_size,
+    )
+
+    assert min_delay_seconds <= result <= max_delay_seconds
+
+
+@pytest.mark.parametrize(
+    ('min_delay_seconds', 'max_delay_seconds', 'grid_size', 'message'),
+    [
+        (-0.01, 0.03, 3, 'min_delay_seconds'),
+        (np.nan, 0.03, 3, 'min_delay_seconds'),
+        (0.03, 0.03, 3, 'max_delay_seconds'),
+        (0.04, 0.03, 3, 'max_delay_seconds'),
+        (0.01, np.inf, 3, 'max_delay_seconds'),
+        (0.01, 0.03, 1, 'grid_size'),
+        (0.01, 0.03, 2.5, 'grid_size'),
+    ],
+)
+def test__optimize_haas_delay_rejects_invalid_search_parameters(
+    min_delay_seconds, max_delay_seconds, grid_size, message
+):
+    with pytest.raises(ValueError, match=message):
+        optimize_haas_delay(
+            input_signal=np.ones((8, 2)),
+            sample_rate_hz=100,
+            min_delay_seconds=min_delay_seconds,
+            max_delay_seconds=max_delay_seconds,
+            grid_size=grid_size,
+        )
 
 
 @pytest.mark.skip

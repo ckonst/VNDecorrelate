@@ -312,9 +312,14 @@ def optimize_haas_delay(
     sample_rate_hz : int
         Input signal sample rate in hertz.
     max_delay_seconds : float
-        Upper bound for the delay-time search interval in seconds.
+        Inclusive upper bound for the delay-time search interval in seconds.
+        It must be finite and strictly greater than ``min_delay_seconds``.
+    min_delay_seconds : float
+        Inclusive lower bound for the delay-time search interval in seconds.
+        It must be finite and non-negative, and strictly less than
+        ``max_delay_seconds``.
     grid_size : int
-        Number of candidates in the initial grid search.
+        Number of candidates in the initial grid search. Must be at least two.
     angle_limit : float
         Largest permitted absolute polar angle in radians.
     lambda_mean, lambda_skew, lambda_correlation, lambda_penalty : float
@@ -332,8 +337,18 @@ def optimize_haas_delay(
     Returns
     -------
     float
-        Optimized ``delay_time_seconds`` in ``[0.0, max_delay_seconds]``.
+        Optimized ``delay_time_seconds`` in
+        ``[min_delay_seconds, max_delay_seconds]``.
     """
+    if not np.isfinite(min_delay_seconds) or min_delay_seconds < 0.0:
+        raise ValueError('min_delay_seconds must be finite and non-negative')
+    if not np.isfinite(max_delay_seconds) or max_delay_seconds <= min_delay_seconds:
+        raise ValueError(
+            'max_delay_seconds must be finite and greater than min_delay_seconds'
+        )
+    if isinstance(grid_size, bool) or not isinstance(grid_size, int) or grid_size < 2:
+        raise ValueError('grid_size must be an integer greater than or equal to 2')
+
     # tau: length of delay for channel
     taus = np.linspace(min_delay_seconds, max_delay_seconds, grid_size)
 

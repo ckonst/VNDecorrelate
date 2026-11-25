@@ -173,7 +173,9 @@ how strongly impulses concentrate toward the start of the filter:
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="img/Kappa%20Dark.svg"><img alt="Kappa" src="img/Kappa.svg"></picture>
 
-`optimize_haas_delay` finds the `delay_time_seconds` parameter:
+`optimize_haas_delay` finds the `delay_time_seconds` parameter over the
+inclusive interval `[min_delay_seconds, max_delay_seconds]`. The lower bound
+defaults to `0.0` seconds:
 
 <picture><source media="(prefers-color-scheme: dark)" srcset="img/Tau%20Dark.svg"><img alt="Tau" src="img/Tau.svg"></picture>
 
